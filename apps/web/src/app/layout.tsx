@@ -1,8 +1,16 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import Link from "next/link"; 
 import "./globals.css";
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faClock, faXmark, faLocationPin, faEnvelope, faPhone } from '@fortawesome/free-solid-svg-icons';
+import { faInstagram, faFacebook } from '@fortawesome/free-brands-svg-icons';
+
+// Import a font for the "Bella" logo
+import { Playfair_Display } from "next/font/google";
 
 const inter = Inter({ subsets: ["latin"] });
+const playfair = Playfair_Display({ subsets: ["latin"], weight: "700" }); // Adjust the font settings as needed
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -16,7 +24,89 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        <header className="bg-white text-black m-4">  
+          <nav className="container mx-auto flex items-center">
+            <div className={`${playfair.className} text-2xl font-bold`}>
+              Bella
+            </div>
+            <ul className="ml-auto flex space-x-4">
+              <li>
+                <Link href="/">
+                  Home
+                </Link>
+              </li>
+              <li>
+                <Link href="/about_us">
+                  About us
+                </Link>
+              </li>
+              <li>
+                <Link href="/contact">
+                  Contact
+                </Link>
+              </li>
+              <li>
+                <Link href="/services">
+                  Services
+                </Link>
+              </li>
+              <li>
+                <Link href="/booking">
+                  Book appointment
+                </Link>
+              </li>
+            </ul>
+          </nav>
+        </header>
+        <main className="container mx-auto">
+          {children}
+        </main>
+
+        <footer className="bg-white text-black mt-8"> 
+          <div className="footer-row flex justify-between items-start mb-4">
+            <div className="footer-left text-xs">
+              <h1 className="text-base font-bold mb-2">Working hours</h1>
+              <p className="mb-2 flex items-center">
+                Monday to Friday - 10am to 6pm 
+                <FontAwesomeIcon icon={faClock} className="ml-2 text-xs w-4 h-4" />
+              </p>
+              <p className="mb-2 flex items-center">
+                Saturday - 10am to 4pm 
+                <FontAwesomeIcon icon={faClock} className="ml-2 text-xs w-4 h-4" />
+              </p>
+              <p className="flex items-center">
+                Sunday - not working 
+                <FontAwesomeIcon icon={faXmark} className="ml-2 text-xs w-4 h-4" />
+              </p>
+            </div>
+            <div className="footer-right text-xs">
+              <h1 className="text-base font-bold mb-2">Get in touch</h1>
+              <p className="mb-2 flex items-center">
+                Address: Malta 1, Sarajevo 
+                <FontAwesomeIcon icon={faLocationPin} className="ml-2 text-xs w-4 h-4" />
+              </p>
+              <p className="mb-2 flex items-center">
+                E-mail: bella@gmail.com 
+                <FontAwesomeIcon icon={faEnvelope} className="ml-2 text-xs w-4 h-4" />
+              </p>
+              <p className="flex items-center">
+                Phone: +387-60-684-547 
+                <FontAwesomeIcon icon={faPhone} className="ml-2 text-xs w-4 h-4" />
+              </p>
+            </div>
+          </div>
+          <div className="social-media-links flex justify-center space-x-2">
+            <a href="https://www.instagram.com/bella.f.s._?igsh=MTN0MGlyc2cxNGg5bg==" className="text-black text-xs">
+              <FontAwesomeIcon icon={faInstagram} className="w-4 h-4" />
+            </a>
+            <a href="https://m.facebook.com/people/frizerski-salon-Bella/100063623705613/" className="text-black text-xs">
+              <FontAwesomeIcon icon={faFacebook} className="w-4 h-4" />
+            </a>
+          </div>
+
+        </footer>
+      </body>
     </html>
   );
 }
