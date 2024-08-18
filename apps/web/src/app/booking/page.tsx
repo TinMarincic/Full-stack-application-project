@@ -1,5 +1,22 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+console.log(process.env);
+
+function getAppointment(id: number){
+  var myHeaders = new Headers();
+myHeaders.append("Content-type", "application/json");
+
+var requestOptions = {
+   method: 'GET',
+   headers: myHeaders
+};
+
+fetch(`${process.env.NEXT_PUBLIC_API_URL}/appointments/${id}?q=rezervacija_sisanje`, requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+}
+
 
 
 function isSunday(date: Date) {
@@ -67,6 +84,8 @@ const BookAppointment: React.FC = () => {
     } 
     alert(`Appointment booked for a ${selectedService} on ${selectedDate} at ${selectedTime}`);
   };
+
+  useEffect(() => {getAppointment(1)},[])
 
   return (
     <div className="container mx-auto p-8 bg-gray-100 min-h-screen flex flex-col items-center justify-center relative">
