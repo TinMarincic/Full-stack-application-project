@@ -1,6 +1,6 @@
 "use client";
 import { useState } from 'react';
-import { sendmail } from '../booking/mailer';
+import { sendmail } from './mailer';
 
 export default function ContactUs() {
   const [formData, setFormData] = useState({
