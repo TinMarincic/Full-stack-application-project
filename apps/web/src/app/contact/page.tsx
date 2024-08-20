@@ -1,5 +1,6 @@
 "use client";
 import { useState } from 'react';
+import { sendmail } from '../booking/mailer';
 
 export default function ContactUs() {
   const [formData, setFormData] = useState({
@@ -12,6 +13,8 @@ export default function ContactUs() {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
+
+  const sendemailForm = sendmail.bind(null)
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -43,7 +46,7 @@ export default function ContactUs() {
       </h1>
       <div className="flex flex-col md:flex-row w-full max-w-5xl bg-white shadow-lg rounded-lg p-6">
         {/* Contact Form */}
-        <form className="w-full md:w-1/2 mb-6 md:mb-0" onSubmit={handleSubmit}>
+        <form className="w-full md:w-1/2 mb-6 md:mb-0" action={sendemailForm}>
           <div className="mb-4">
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">
               Name
