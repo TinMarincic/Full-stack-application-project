@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from pydantic import EmailStr, BaseModel
 from typing import List
-from typing import Union
 from starlette.responses import JSONResponse
 from dotenv import load_dotenv
 import os
@@ -25,16 +24,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
-@app.get("/appointments/{appointment_id}")
-def get_appointment(appointment_id: int, q: Union[str, None] = None):
-    return {"appointment_id": appointment_id, "q": q}
-
-class EmailSchema(BaseModel):
-    email: List[EmailStr]
+class ContactForm(BaseModel):
+    name: str
+    email: EmailStr
+    message: str
 
 conf = ConnectionConfig(
     MAIL_USERNAME=os.getenv("EMAIL"),
@@ -42,7 +35,7 @@ conf = ConnectionConfig(
     MAIL_FROM=os.getenv("EMAIL"),
     MAIL_PORT=587,
     MAIL_SERVER="smtp.gmail.com",
-    MAIL_FROM_NAME="nebitno",
+    MAIL_FROM_NAME="Bella Salon",
     MAIL_STARTTLS=True,
     MAIL_SSL_TLS=False,
     USE_CREDENTIALS=True,
@@ -50,12 +43,16 @@ conf = ConnectionConfig(
 )
 
 @app.post("/email")
-async def simple_send() -> JSONResponse:
-    html = """<p>Hi this test mail, thanks for using Fastapi-mail</p> """
+async def send_contact_form(contact_form: ContactForm) -> JSONResponse:
+    html = f"""
+    <p><strong>Name:</strong> {contact_form.name}</p>
+    <p><strong>Email:</strong> {contact_form.email}</p>
+    <p><strong>Message:</strong><br/>{contact_form.message}</p>
+    """
 
     message = MessageSchema(
-        subject="Fastapi-Mail module",
-        recipients=[os.getenv("EMAIL")], 
+        subject=f"Message from {contact_form.name}",
+        recipients=[os.getenv("EMAIL")],  # Receiver's email
         body=html,
         subtype=MessageType.html
     )

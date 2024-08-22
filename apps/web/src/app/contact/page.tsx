@@ -1,41 +1,42 @@
 "use client";
-import { useState } from 'react';
-import { sendmail } from './mailer';
+import React, { useState } from "react";
+import { sendmail } from './mailer'; 
 
-export default function ContactUs() {
+export default function ContactPage() {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    message: '',
+    name: "",
+    email: "",
+    message: "",
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-  };
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
-  const sendemailForm = sendmail.bind(null)
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
-    const response = await fetch('/api/contact', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(formData),
-    });
+    setStatus("loading");
 
-    if (response.ok) {
-      console.log('Form submitted successfully');
-      setFormData({
-        name: '',
-        email: '',
-        message: '',
-      });
-    } else {
-      console.log('Error submitting form');
+    try {
+      const emailResponse = await sendmail(formData);
+
+      if (emailResponse.success) {
+        setStatus("success");
+        setFormData({ name: "", email: "", message: "" });
+      } else {
+        setStatus("error");
+        setErrorMessage("Failed to send the message. Please try again.");
+      }
+    } catch (error) {
+      setStatus("error");
+      setErrorMessage("Error submitting the form. Please try again.");
+      console.error("Form submission error:", error);
     }
   };
 
@@ -46,7 +47,7 @@ export default function ContactUs() {
       </h1>
       <div className="flex flex-col md:flex-row w-full max-w-5xl bg-white shadow-lg rounded-lg p-6">
         {/* Contact Form */}
-        <form className="w-full md:w-1/2 mb-6 md:mb-0" action={sendemailForm}>
+        <form className="w-full md:w-1/2 mb-6 md:mb-0" onSubmit={handleSubmit}>
           <div className="mb-4">
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">
               Name
@@ -58,7 +59,7 @@ export default function ContactUs() {
               placeholder="Name"
               name="name"
               value={formData.name}
-              onChange={handleChange}
+              onChange={handleInputChange}
               required
             />
           </div>
@@ -73,7 +74,7 @@ export default function ContactUs() {
               placeholder="Email"
               name="email"
               value={formData.email}
-              onChange={handleChange}
+              onChange={handleInputChange}
               required
             />
           </div>
@@ -87,7 +88,7 @@ export default function ContactUs() {
               placeholder="Message"
               name="message"
               value={formData.message}
-              onChange={handleChange}
+              onChange={handleInputChange}
               required
             />
           </div>
@@ -95,10 +96,13 @@ export default function ContactUs() {
             <button
               className="bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
               type="submit"
+              disabled={status === "loading"}
             >
-              Send
+              {status === "loading" ? "Sending..." : "Send"}
             </button>
           </div>
+          {status === "error" && <p className="text-red-500 mt-4">{errorMessage}</p>}
+          {status === "success" && <p className="text-green-500 mt-4">Message sent successfully!</p>}
         </form>
         
         {/* Location Section */}
