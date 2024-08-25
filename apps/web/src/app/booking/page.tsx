@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from 'react';
-console.log(process.env);
+import { Calendar } from './calendar';
 
 function getAppointment(id: number){
   var myHeaders = new Headers();
@@ -90,6 +90,7 @@ const BookAppointment: React.FC = () => {
   return (
     <div className="container mx-auto p-8 bg-gray-100 min-h-screen flex flex-col items-center justify-center relative">
  
+ <Calendar />  
       <div className="absolute w-[24rem] h-[24rem] bg-gray-700 rounded-full left-[-12rem] top-1/2 transform -translate-y-1/2 overflow-hidden hidden lg:block"></div>
       <div className="absolute w-[24rem] h-[24rem] bg-yellow-400 rounded-full left-[8rem] top-1/2 transform -translate-y-1/2 overflow-hidden hidden lg:block"></div>
       <h1 className="text-4xl font-bold mb-6 z-10">Book an Appointment</h1>
