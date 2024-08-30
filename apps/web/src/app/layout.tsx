@@ -79,7 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 Home
                 <span className="absolute left-0 bottom-[-4px] w-full h-[2px] bg-white scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
               </Link>
-              <Link href="/about_us" className="relative group text-white text-lg" onClick={toggleMenu}>
+              {/*<Link href="/about_us" className="relative group text-white text-lg" onClick={toggleMenu}>
                 About us
                 <span className="absolute left-0 bottom-[-4px] w-full h-[2px] bg-white scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
               </Link>
@@ -90,7 +90,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/services" className="relative group text-white text-lg" onClick={toggleMenu}>
                 Services
                 <span className="absolute left-0 bottom-[-4px] w-full h-[2px] bg-white scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
-              </Link>
+              </Link>*/}
               <Link href="/booking" className="relative group text-white text-lg" onClick={toggleMenu}>
                 Book appointment
                 <span className="absolute left-0 bottom-[-4px] w-full h-[2px] bg-white scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
