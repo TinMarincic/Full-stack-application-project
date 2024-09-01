@@ -10,8 +10,6 @@ const config = {
   ]
 }
 
-
-
 const apiCalendar = new ApiCalendar(config)
     /**
      * List all events in the calendar
