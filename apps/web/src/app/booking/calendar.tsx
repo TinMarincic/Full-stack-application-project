@@ -2,8 +2,8 @@ import React, {ReactNode, SyntheticEvent} from 'react';
 import ApiCalendar from 'react-google-calendar-api';
 
 const config = {
-  clientId: process.env.REACT_APP_GOOGLE_CLIENT_ID as string,
-  apiKey: process.env.REACT_APP_GOOGLE_API_KEY as string,
+  clientId: "577623087637-f4q17fb39pmaiuou2n0smnhcfh6b8l7u.apps.googleusercontent.com" as string,
+  apiKey: "AIzaSyBvFzjEmqu7-_bKHy_GNAKYuTrOTMMlXtc" as string,
   scope: "https://www.googleapis.com/auth/calendar",
   discoveryDocs: [
     "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"
@@ -49,26 +49,28 @@ export const Calendar = () => {
 
     return (
         <div>
-        <button
+        <button className='m-3 inline-block bg-yellow-500 text-white py-2 px-4 rounded-xl hover:bg-yellow-600 transition-colors'
             onClick={(e) => listEvents()}
         >
           list events
         </button>
-        <button
+        <button className='m-3 inline-block bg-yellow-500 text-white py-2 px-4 rounded-xl hover:bg-yellow-600 transition-colors'
             onClick={(e) => handleItemClick(e, 'sign-in')}
         >
           sign-in
         </button>
-        <button
+        <button className='m-3 inline-block bg-yellow-500 text-white py-2 px-4 rounded-xl hover:bg-yellow-600 transition-colors'
             onClick={(e) => handleItemClick(e, 'sign-out')}
         >
           sign-out
         </button>
-        <button
+        
+        <button className='m-3 inline-block bg-yellow-500 text-white py-2 px-4 rounded-xl hover:bg-yellow-600 transition-colors'
             onClick={(e) => getSingleEvent()}
         >
         get event
         </button>
+        
         </div>
     );
 }

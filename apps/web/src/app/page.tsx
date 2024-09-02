@@ -19,7 +19,7 @@ export default function CombinedPage() {
 
         <div className="relative z-10 flex flex-col items-center lg:flex-row space-y-8 lg:space-y-0 lg:space-x-8 md:mt-20 p-8 rounded-lg">
           <div className="text-center lg:text-left max-w-lg">
-          <h1 className="hidden lg:block text-3xl md:text-4xl lg:text-5xl lg:ml-28 font-bold text-gray-800">Bella</h1>
+          <h1 className="hidden lg:block text-3xl md:text-4xl lg:text-5xl lg:ml-40 font-bold text-gray-800">Bella</h1>
             <div className="relative">
               <div className="absolute inset-0 bg-black opacity-50 rounded-md lg:hidden md:hidden"></div>
               <p className="text-lg text-white md:text-gray-600 mt-2 lg:pl-20 md:ml-10 relative z-10">

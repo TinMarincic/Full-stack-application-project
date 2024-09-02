@@ -1,6 +1,8 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { Calendar } from './calendar';
+import { book_appointment } from './booking';
+
 
 function getAppointment(id: number) {
   var myHeaders = new Headers();
@@ -49,6 +51,14 @@ const serviceOptions = [
 ];
 
 const BookAppointment: React.FC = () => {
+
+  const [formData, setFormData] = useState({
+    email: "",
+    date: new Date(),
+    service_type: "",
+    time: new Date(),
+  });
+
   const [email, setEmail] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedTime, setSelectedTime] = useState<string>('');
@@ -76,16 +86,31 @@ const BookAppointment: React.FC = () => {
     return !isSunday(date);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState<string>("");
+
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    console.log("radi molim te ")
     e.preventDefault();
-    if (!isDateValid()) {
-      alert('Appointments cannot be booked on Sundays. Please select another date.');
-      return;
+    setStatus("loading");
+  
+    try {
+      const booking_appointment_response = await book_appointment(formData);
+      if (booking_appointment_response.success) {
+        setStatus("success");
+      } else {
+        setStatus("error");
+        setErrorMessage("Failed to send the message. Please try again.");
+      }
+    } catch (error) {
+      setStatus("error");
+      setErrorMessage("Error submitting the form. Please try again.");
+      console.error("Form submission error:", error);
     }
-    alert(`Appointment booked for a ${selectedService} on ${selectedDate} at ${selectedTime}. A confirmation email will be sent to ${email}.`);
   };
 
-  useEffect(() => { getAppointment(1) }, [])
 
   return (
     <div className="container mx-auto p-8 bg-gray-100 min-h-screen flex flex-col items-center justify-center relative">
@@ -170,7 +195,6 @@ const BookAppointment: React.FC = () => {
         <button
           type="submit"
           className="w-full bg-yellow-400 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-500 transition duration-200 cursor-pointer"
-          disabled={!email || !selectedDate || !selectedTime || !selectedService || !isDateValid()}
         >
           Book Appointment
         </button>
