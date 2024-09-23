@@ -17,7 +17,7 @@ const apiCalendar = new ApiCalendar(config)
      * @param {string} calendarId to see by default use the calendar attribute
      * @returns {any} Promise with the result.
      *//*public listUpcomingEvents(maxResults: number, calendarId: string = this.calendar): any*/
-
+/*
 export const Calendar = () => {
 
 
@@ -25,8 +25,8 @@ export const Calendar = () => {
     apiCalendar.listEvents({
         timeMin: new Date().toISOString(),
         timeMax: new Date(2024, 8, 31).toISOString(),
-        showDeleted: true,
-        maxResults: 10,
+        showDeleted: false,
+        maxResults: 100,
         orderBy: 'updated'
     },"primary").then(({ result }: any) => {
     console.log(result.items);
@@ -75,3 +75,4 @@ export const Calendar = () => {
     );
 }
 
+*/
