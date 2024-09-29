@@ -1,14 +1,19 @@
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
-from pydantic import BaseModel, EmailStr
-from starlette.responses import JSONResponse
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from fastapi import FastAPI
+from dateutil import parser
+import ssl
+import httplib2
+from pytz import timezone
+
+ssl_context = ssl.create_default_context()
+http = httplib2.Http(ca_certs=ssl_context)
 
 # environment variables loading
 load_dotenv()
@@ -21,41 +26,18 @@ origins = [
     "http://localhost:3000",
     "http://127.0.0.1:8000",
    "http://127.0.0.1:8000/book_appointment", 
+   "http://127.0.0.1:8000/get-free-time"
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Email config for smtp server 
-conf = ConnectionConfig(
-    MAIL_USERNAME=os.getenv("EMAIL"), 
-    MAIL_PASSWORD=os.getenv("GMAIL_PASSWORD"),  
-    MAIL_FROM=os.getenv("EMAIL"),
-    MAIL_PORT=587,
-    MAIL_SERVER="smtp.gmail.com",
-    MAIL_FROM_NAME="Bella Salon",
-    MAIL_STARTTLS=True,
-    MAIL_SSL_TLS=False,
-    USE_CREDENTIALS=True,
-    VALIDATE_CERTS=True
-)
-
-# FastMail
-fm = FastMail(conf)
-
-# Booking form model
-class AppointmentForm(BaseModel):
-    gender_age: str
-    email: EmailStr
-    service_type: str
-    datetime: datetime 
-
-#service account information instead of json file (should use .env variables later)
+#service account information (should use .env variables later)
 SERVICE_ACCOUNT_INFO = {
     "type": "service_account",
     "project_id": "bella-433413",
@@ -71,7 +53,7 @@ SERVICE_ACCOUNT_INFO = {
     "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/bella-calendar%40bella-433413.iam.gserviceaccount.com",
 }
 
-# credentials object
+# credentials
 credentials = service_account.Credentials.from_service_account_info(
     SERVICE_ACCOUNT_INFO,
     scopes=["https://www.googleapis.com/auth/calendar"]
@@ -82,88 +64,90 @@ calendar_service = build('calendar', 'v3', credentials=credentials)
 
 CALENDAR_ID = "bella.frizerski.salon@gmail.com"
 
-@app.post("/book-appointment")
-async def book_appointment(appointment_form: AppointmentForm):
-    # Get the current time as timezone-aware (ubaceno zbog errora)
-    now = datetime.now(timezone.utc)
+# service durations
+service_durations = {
+  "Women's Haircut": 45,
+  "Shampoo & Blow Dry": 30,
+  "Full Hair Color": 120,
+  "Highlights": 90,
+  "Men's Haircut": 30,
+  "Men's Beard": 20,
+  "Children's Haircut": 20,
+}
 
-    # iskocio mi je error pa sam ovo nasao 
-    booking_datetime = appointment_form.datetime.replace(tzinfo=timezone.utc)
 
-    # appointment is not in the past
-    if booking_datetime < now:
-        raise HTTPException(status_code=400, detail="Cannot book an appointment in the past.")
+# 1. Fetch all events from the Google Calendar
+async def get_all_events():
+    events_result = calendar_service.events().list(
+        calendarId=CALENDAR_ID,
+        singleEvents=True,
+        orderBy='startTime'
+    ).execute()
+    
+    events = events_result.get('items', [])
+    return events
 
-    # time range but assuming 1 hour duration (not great logic)
-    start_time = booking_datetime
-    end_time = start_time + timedelta(hours=1)
 
-    # double booking
-    try:
-        events_result = calendar_service.events().list(
-            calendarId=CALENDAR_ID,
-            timeMin=start_time.isoformat(),
-            timeMax=end_time.isoformat(),
-            singleEvents=True,
-            orderBy='startTime'
-        ).execute()
-        events = events_result.get('items', [])
+ba_tz = timezone('Europe/Sarajevo')
 
-        if events:
-            raise HTTPException(status_code=400, detail="This time slot is already booked.")
-    except Exception as e:
-        print(f"Error accessing Google Calendar: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error while checking calendar.")
+async def get_free_time_for_date(selected_date: datetime, service_duration: int):
+    selected_date = selected_date.astimezone(ba_tz)
 
-    # event creation part
-    event = {
-        'summary': appointment_form.service_type,
-        'description': f"Service: {appointment_form.service_type} for {appointment_form.email}",
-        'start': {
-            'dateTime': start_time.isoformat(),
-            'timeZone': 'Europe/Sarajevo',
-        },
-        'end': {
-            'dateTime': end_time.isoformat(),
-            'timeZone': 'Europe/Sarajevo',
-        },
-    }
+    events = await get_all_events()
 
-    try:
-        created_event = calendar_service.events().insert(
-            calendarId=CALENDAR_ID,
-            body=event
-        ).execute()
-        event_link = created_event.get('htmlLink')
-    except Exception as e:
-        print(f"Error creating event in Google Calendar: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error while creating calendar event.")
-
-    # confirmation email
-    html_content = f"""
-    <p>Dear Customer,</p>
-    <p>Your appointment for <strong>{appointment_form.service_type}</strong> has been confirmed.</p>
-    <p><strong>Date:</strong> {start_time.strftime('%Y-%m-%d')}</p>
-    <p><strong>Time:</strong> {start_time.strftime('%I:%M %p')}</p>
-    <p>Thank you for choosing Bella Frizerski Salon. We look forward to seeing you!</p>
-    <p><a href="{event_link}">View Appointment</a></p>
-    """
-
-    message = MessageSchema(
-        subject="Appointment Confirmation",
-        recipients=[appointment_form.email],
-        body=html_content,
-        subtype=MessageType.html
+    # timezone problems
+    sorted_events = sorted(
+        (e for e in events if parser.isoparse(e["start"]["dateTime"]).astimezone(ba_tz).date() == selected_date.date()), 
+        key=lambda e: e["start"]["dateTime"]
     )
 
-    # confirmation email
-    try:
-        await fm.send_message(message)
-    except Exception as e:
-        print(f"Error sending confirmation email: {e}")
-        raise HTTPException(status_code=500, detail="Failed to send confirmation email.")
+    free_timestamps = []
+    opening_time = selected_date.replace(hour=9, minute=0, second=0, microsecond=0)  #9 AM
+    closing_time = selected_date.replace(hour=18, minute=0, second=0, microsecond=0)  #6 PM
 
-    return JSONResponse(status_code=200, content={
-        "message": "Appointment booked successfully!",
-        "event_link": event_link
-    })
+    last_end_time = opening_time
+
+    for event in sorted_events:    
+        event_start = parser.isoparse(event["start"]["dateTime"]).astimezone(ba_tz)
+        event_end = parser.isoparse(event["end"]["dateTime"]).astimezone(ba_tz)
+
+        if last_end_time < event_start:
+            free_timestamps.append({
+                "start": last_end_time.isoformat(),
+                "end": event_start.isoformat(),
+            })
+
+        last_end_time = event_end
+
+    if last_end_time < closing_time:
+        free_timestamps.append({
+            "start": last_end_time.isoformat(),
+            "end": closing_time.isoformat(),
+        })
+
+    # time slots based on service duration
+    time_slots = []
+    for interval in free_timestamps:
+        start = parser.isoparse(interval["start"])
+        end = parser.isoparse(interval["end"])
+
+        while start + timedelta(minutes=service_duration) <= end:
+            next_time = start + timedelta(minutes=service_duration)
+            time_slots.append(f"{start.strftime('%I:%M %p')} - {next_time.strftime('%I:%M %p')}")
+            start = next_time
+
+    return time_slots
+
+
+# 3. API endpoint to get free time for a selected date
+@app.get("/get-free-time")
+async def get_free_time_endpoint(date: str, service: str = Query(...)):
+    selected_date = parser.parse(date)
+    
+    if service not in service_durations:
+        return {"error": "Service not found"}
+    
+    service_duration = service_durations[service]  # duration of the selected service
+    
+    free_time_slots = await get_free_time_for_date(selected_date, service_duration)
+    return free_time_slots

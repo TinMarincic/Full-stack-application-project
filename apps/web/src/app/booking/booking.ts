@@ -13,6 +13,16 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+const serviceDurations: { [key: string]: number } = {
+  "Women's Haircut": 45,
+  "Shampoo & Blow Dry": 30,
+  "Full Hair Color": 120,
+  "Highlights": 90,
+  "Men's Haircut": 30,
+  "Men's Beard": 20,
+  "Children's Haircut": 20,
+};
+
 export async function sendConfirmationEmail(formdata: { email: string; service_type: string; date: string; time: string }) {
   try {
     const info = await transporter.sendMail({
@@ -55,20 +65,21 @@ export async function book_appointment(formdata: { email: string; date: Date; se
     });
 
     const calendar = new calendar_v3.Calendar({ auth });
-
-    const startTime = new Date(formdata.date);
+ const startTime = new Date(formdata.date);
     startTime.setHours(formdata.time.getHours(), formdata.time.getMinutes());
-    const endTime = new Date(startTime);
-    endTime.setHours(startTime.getHours() + 1);
 
-    // Check if the appointment is being booked in the past
+    const serviceDuration = serviceDurations[formdata.service_type] || 60; 
+
+    const endTime = new Date(startTime);
+    endTime.setMinutes(startTime.getMinutes() + serviceDuration);
+
+    // Check if the appointment is in the past
     const now = new Date();
     if (startTime < now) {
-      console.error("Cannot book an appointment in the past.");
       return { success: false, error: "Cannot book an appointment in the past." };
     }
 
-   // Check for conflicts
+    // Check for conflicts
     const conflictCheck = await calendar.events.list({
       calendarId: "bella.frizerski.salon@gmail.com",
       timeMin: startTime.toISOString(),
@@ -77,11 +88,10 @@ export async function book_appointment(formdata: { email: string; date: Date; se
     });
 
     if (conflictCheck.data.items?.length) {
-      console.error("Conflict detected: There is already an event at this time.");
       return { success: false, error: "This time slot is already booked." };
     }
 
-    // If there is no conflict, create the event
+    // If no conflict, create the event
     const event = {
       summary: formdata.service_type,
       description: `Service: ${formdata.service_type} for ${formdata.email}`,
@@ -95,14 +105,14 @@ export async function book_appointment(formdata: { email: string; date: Date; se
       },
     };
 
-    const response = await calendar.events.insert({
+    const newEvent = await calendar.events.insert({
       calendarId: "bella.frizerski.salon@gmail.com",
       requestBody: event,
     });
 
-    console.log("Event created successfully: ", response.data.htmlLink);
+    console.log("Event created:", newEvent.data);
 
-    //Send confirmation email  
+    // Send confirmation email
     const emailResponse = await sendConfirmationEmail({
       email: formdata.email,
       service_type: formdata.service_type,
@@ -114,15 +124,10 @@ export async function book_appointment(formdata: { email: string; date: Date; se
       console.error("Error sending confirmation email:", emailResponse.error);
     }
 
-    return { success: true, eventLink: response.data.htmlLink };
+    return { success: true, eventLink: newEvent.data.htmlLink }; 
 
   } catch (error) {
-    if (error instanceof Error) {
-      console.error("Error while booking:", error.message);
-      return { success: false, error: error.message };
-    } else {
-      console.error("Unknown error occurred:", error);
-      return { success: false, error: "An unknown error occurred." };
-    }
+    console.error("Error booking appointment:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error occurred" };
   }
 }

@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import { book_appointment } from "./booking";
 
 function isSunday(date: Date) {
   return date.getDay() === 0;
@@ -11,10 +12,21 @@ const serviceOptions = {
   child: ["Children's Haircut"],
 };
 
+const serviceDurations: { [key: string]: number } = {
+  "Women's Haircut": 45,
+  "Shampoo & Blow Dry": 30,
+  "Full Hair Color": 120,
+  "Highlights": 90,
+  "Men's Haircut": 30,
+  "Men's Beard": 20,
+  "Children's Haircut": 20,
+};
+
 const BookAppointment: React.FC = () => {
   const [gender_age, setGender_Age] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>("");
+  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [selectedService, setSelectedService] = useState<string>("");
   const [dateError, setDateError] = useState<string>("");
@@ -41,7 +53,7 @@ const BookAppointment: React.FC = () => {
     setEmail(e.target.value);
   };
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDateChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedDateValue = e.target.value;
     const date = new Date(selectedDateValue);
 
@@ -51,6 +63,9 @@ const BookAppointment: React.FC = () => {
     } else {
       setSelectedDate(selectedDateValue);
       setDateError("");
+      if (selectedService) {
+        await fetchAvailableTimes(selectedDateValue, selectedService);
+      }
     }
   };
 
@@ -60,6 +75,25 @@ const BookAppointment: React.FC = () => {
 
   const handleServiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedService(e.target.value);
+    if (selectedDate) {
+      fetchAvailableTimes(selectedDate, e.target.value);
+    }
+  };
+
+  // fetch available times from backend
+  const fetchAvailableTimes = async (date: string, service: string) => {
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/get-free-time?date=${date}&service=${service}`
+      );
+      if (!response.ok) {
+        throw new Error(`Error fetching available times: ${response.statusText}`);
+      }
+      const freeTimes = await response.json();
+      setAvailableTimes(freeTimes);
+    } catch (error) {
+      console.error("Error fetching available times:", error);
+    }
   };
 
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -68,38 +102,36 @@ const BookAppointment: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setStatus("loading");
-  
+
     try {
       const [timeString, period] = selectedTime.split(" ");
       const [hours, minutes] = timeString.split(":").map(Number);
-  
+
       let adjustedHours = period === "PM" && hours !== 12 ? hours + 12 : hours;
       if (period === "AM" && hours === 12) adjustedHours = 0;
-  
+
       const dateWithTime = new Date(selectedDate);
       dateWithTime.setHours(adjustedHours, minutes);
-  
-      // form data
+
+      const duration = serviceDurations[selectedService];
+      const endTime = new Date(dateWithTime);
+      endTime.setMinutes(endTime.getMinutes() + duration);
+
       const formData = {
-        gender_age,
         email,
+        date: new Date(selectedDate),
+        time: dateWithTime,
+        end_time: endTime,
         service_type: selectedService,
-        datetime: dateWithTime.toISOString(), 
       };
-  
-      const response = await fetch("http://127.0.0.1:8000/book-appointment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-  
-      if (response.ok) {
-        setStatus("success");
-      } else {
+
+      const response = await book_appointment(formData);
+
+      if (response?.error) {
+        setErrorMessage(response.error);
         setStatus("error");
-        setErrorMessage("Failed to send the booking request. Please try again.");
+      } else {
+        setStatus("success");
       }
     } catch (error) {
       setStatus("error");
@@ -107,7 +139,6 @@ const BookAppointment: React.FC = () => {
       console.error("Form submission error:", error);
     }
   };
-  
 
   return (
     <div className="container mx-auto p-8 bg-gray-100 min-h-screen flex flex-col items-center justify-center relative">
@@ -158,9 +189,9 @@ const BookAppointment: React.FC = () => {
             id="date"
             value={selectedDate}
             onChange={handleDateChange}
-            className={`w-full p-2 border ${dateError ? 'border-red-500' : 'border-gray-300'} rounded-lg`}
+            className={`w-full p-2 border ${dateError ? "border-red-500" : "border-gray-300"} rounded-lg`}
             min={today.toISOString().split("T")[0]}
-            max={maxDate.toISOString().split("T")[0]} 
+            max={maxDate.toISOString().split("T")[0]}
             required
           />
           {dateError && <p className="text-red-500 mt-2">{dateError}</p>}
@@ -198,25 +229,32 @@ const BookAppointment: React.FC = () => {
             required
           >
             <option value="" disabled>Select a time</option>
-            <option value="9:00 AM">9:00 AM</option>
-            <option value="10:00 AM">10:00 AM</option>
-            <option value="11:00 AM">11:00 AM</option>
-            <option value="12:00 PM">12:00 PM</option>
-            <option value="1:00 PM">1:00 PM</option>
-            <option value="2:00 PM">2:00 PM</option>
+            {availableTimes.length > 0 ? (
+              availableTimes.map((time) => (
+                <option key={time} value={time}>
+                  {time}
+                </option>
+              ))
+            ) : (
+              <option value="" disabled>
+                No available times
+              </option>
+            )}
           </select>
         </div>
 
         <button
           type="submit"
-          className="w-full bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors duration-300"
+          className="bg-yellow-400 text-white p-3 rounded-lg w-full font-bold hover:bg-yellow-500 transition-colors"
           disabled={status === "loading"}
         >
           {status === "loading" ? "Booking..." : "Book Appointment"}
         </button>
 
+        {status === "success" && (
+          <p className="text-green-500 mt-4">Your appointment has been booked successfully!</p>
+        )}
         {status === "error" && <p className="text-red-500 mt-4">{errorMessage}</p>}
-        {status === "success" && <p className="text-green-500 mt-4">Appointment successfully booked!</p>}
       </form>
     </div>
   );
