@@ -100,6 +100,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </header>
 
         <main className="container mx-auto flex-grow">{children}</main>
+        
         <footer className="bg-gray-700 text-[rgb(255,248,248)] w-full p-4">
           <div className="container mx-auto px-8 md:px-20">
             <div className="footer-row flex flex-col md:flex-row justify-center md:justify-between items-center md:items-start mb-4 space-y-4 md:space-y-0">

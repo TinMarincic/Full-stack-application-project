@@ -2,7 +2,6 @@
 import { google, calendar_v3 } from "googleapis";
 const nodemailer = require("nodemailer");
 
-
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
@@ -15,22 +14,26 @@ const transporter = nodemailer.createTransport({
 
 const serviceDurations: { [key: string]: number } = {
   "Women's Haircut": 45,
-  "Shampoo & Blow Dry": 30,
+  "Shampoo Blow Dry": 30,
   "Full Hair Color": 120,
   "Highlights": 90,
   "Men's Haircut": 30,
   "Men's Beard": 20,
   "Children's Haircut": 20,
+
 };
 
-export async function sendConfirmationEmail(formdata: { email: string; service_type: string; date: string; time: string }) {
+export async function sendConfirmationEmail(formdata: { email: string; services: string[]; date: string; time: string }) {
   try {
+    const servicesList = formdata.services.join(", ");
+    
     const info = await transporter.sendMail({
       from: `"Bella Frizerski Salon" <${process.env.EMAIL}>`, 
       to: formdata.email, 
       subject: "Appointment Confirmation", 
       html: `<p>Dear customer,</p>
-             <p>Your appointment for <strong>${formdata.service_type}</strong> has been confirmed.</p>
+             <p>Your appointment for the following services has been confirmed:</p>
+             <p><strong>Services:</strong> ${servicesList}</p>
              <p><strong>Date:</strong> ${formdata.date}</p>
              <p><strong>Time:</strong> ${formdata.time}</p>
              <p>Thank you for choosing Bella Frizerski Salon. We look forward to seeing you!</p>`, 
@@ -49,7 +52,7 @@ export async function sendConfirmationEmail(formdata: { email: string; service_t
   }
 }
 
-export async function book_appointment(formdata: { email: string; date: Date; service_type: string; time: Date }) {
+export async function book_appointment(formdata: { email: string; date: Date; services: string[]; time: Date }) {
   try {
     const auth = await google.auth.getClient({
       projectId: "bella-433413",
@@ -65,13 +68,16 @@ export async function book_appointment(formdata: { email: string; date: Date; se
     });
 
     const calendar = new calendar_v3.Calendar({ auth });
- const startTime = new Date(formdata.date);
+    const startTime = new Date(formdata.date);
     startTime.setHours(formdata.time.getHours(), formdata.time.getMinutes());
 
-    const serviceDuration = serviceDurations[formdata.service_type] || 60; 
+    // Calculate total duration based on selected services
+    const totalDuration = formdata.services.reduce((total, service) => {
+      return total + (serviceDurations[service] || 60); // Default to 60 minutes if service not found
+    }, 0);
 
     const endTime = new Date(startTime);
-    endTime.setMinutes(startTime.getMinutes() + serviceDuration);
+    endTime.setMinutes(startTime.getMinutes() + totalDuration);
 
     // Check if the appointment is in the past
     const now = new Date();
@@ -79,55 +85,34 @@ export async function book_appointment(formdata: { email: string; date: Date; se
       return { success: false, error: "Cannot book an appointment in the past." };
     }
 
-    // Check for conflicts
-    const conflictCheck = await calendar.events.list({
+
+    // If no conflict, proceed to create event
+    const event = await calendar.events.insert({
       calendarId: "bella.frizerski.salon@gmail.com",
-      timeMin: startTime.toISOString(),
-      timeMax: endTime.toISOString(),
-      singleEvents: true,
+      requestBody: {
+        summary: `Appointment for ${formdata.services.join(", ")}`,
+        description: `Services: ${formdata.services.join(", ")}\nCustomer Email: ${formdata.email}`,
+        start: { dateTime: startTime.toISOString(), timeZone: "Europe/Sarajevo" },
+        end: { dateTime: endTime.toISOString(), timeZone: "Europe/Sarajevo" },
+      },
     });
 
-    if (conflictCheck.data.items?.length) {
-      return { success: false, error: "This time slot is already booked." };
-    }
-
-    // If no conflict, create the event
-    const event = {
-      summary: formdata.service_type,
-      description: `Service: ${formdata.service_type} for ${formdata.email}`,
-      start: {
-        dateTime: startTime.toISOString(),
-        timeZone: "Europe/Sarajevo",
-      },
-      end: {
-        dateTime: endTime.toISOString(),
-        timeZone: "Europe/Sarajevo",
-      },
-    };
-
-    const newEvent = await calendar.events.insert({
-      calendarId: "bella.frizerski.salon@gmail.com",
-      requestBody: event,
-    });
-
-    console.log("Event created:", newEvent.data);
-
-    // Send confirmation email
-    const emailResponse = await sendConfirmationEmail({
+    await sendConfirmationEmail({
       email: formdata.email,
-      service_type: formdata.service_type,
-      date: startTime.toDateString(),
-      time: startTime.toTimeString().slice(0, 5), 
+      services: formdata.services,
+      date: formdata.date.toDateString(),
+      time: formdata.time.toTimeString(),
     });
 
-    if (!emailResponse.success) {
-      console.error("Error sending confirmation email:", emailResponse.error);
-    }
-
-    return { success: true, eventLink: newEvent.data.htmlLink }; 
-
+    console.log("Appointment created:", event.data.id);
+    return { success: true };
   } catch (error) {
-    console.error("Error booking appointment:", error);
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error occurred" };
+    if (error instanceof Error) {
+      console.error("Error booking appointment:", error.message);
+      return { success: false, error: error.message };
+    } else {
+      console.error("Unknown error occurred:", error);
+      return { success: false, error: "An unknown error occurred." };
+    }
   }
 }
