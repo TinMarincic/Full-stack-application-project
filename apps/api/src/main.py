@@ -148,10 +148,13 @@ async def get_free_time_for_date(selected_date: datetime, total_duration: int):
 
     return time_slots
 
-
 @app.get("/get-free-time")
 async def get_free_time_endpoint(date: str, services: str = Query(...)):
     try:
+        # If services is an empty string or only contains whitespace, raise an error
+        if not services.strip():
+            raise HTTPException(status_code=400, detail="No service selected")
+
         # Splitting the services string into a list
         service_list = services.split(',')
         
@@ -159,8 +162,9 @@ async def get_free_time_endpoint(date: str, services: str = Query(...)):
         
         total_duration = 0
         for service in service_list:
-            if service.strip() in service_durations:
-                total_duration += service_durations[service.strip()]
+            service = service.strip() 
+            if service in service_durations:
+                total_duration += service_durations[service]
             else:
                 raise HTTPException(status_code=400, detail=f"Invalid service: {service}")
         

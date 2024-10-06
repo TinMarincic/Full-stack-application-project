@@ -47,7 +47,7 @@ const BookAppointment: React.FC = () => {
   const handleGender_AgeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setGender_Age(e.target.value);
     setSelectedServices([]);
-    setAvailableTimes([]); 
+    setAvailableTimes([]);
   };
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,13 +82,16 @@ const BookAppointment: React.FC = () => {
 
     setSelectedServices(updatedServices);
 
-
-    if (selectedDate) {
+    if (selectedDate && updatedServices.length > 0) {
       await fetchAvailableTimes(selectedDate, updatedServices);
+    } else {
+      setAvailableTimes([]); 
     }
   };
 
   const fetchAvailableTimes = async (date: string, services: string[]) => {
+    if (services.length === 0) return; 
+
     try {
       const response = await fetch(
         `http://127.0.0.1:8000/get-free-time?date=${date}&services=${services.join(",")}`
@@ -109,6 +112,18 @@ const BookAppointment: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setStatus("loading");
+
+    if (selectedServices.length === 0) {
+      setErrorMessage("Please select at least one service.");
+      setStatus("error");
+      return;
+    }
+
+    if (!selectedTime) {
+      setErrorMessage("Please select a time.");
+      setStatus("error");
+      return;
+    }
 
     try {
       const [timeString, period] = selectedTime.split(" ");
@@ -149,7 +164,6 @@ const BookAppointment: React.FC = () => {
       console.error("Form submission error:", error);
     }
   };
-
   return (
     <div className="container mx-auto p-8 bg-gray-100 min-h-screen flex flex-col items-center justify-center relative">
       <h1 className="text-4xl font-bold mb-6 z-10">Book an Appointment</h1>
@@ -171,7 +185,7 @@ const BookAppointment: React.FC = () => {
             <option value="child">Child</option>
           </select>
         </div>
-
+  
         <div className="mb-4">
           <label htmlFor="email" className="block text-lg font-medium mb-2">Email</label>
           <input
@@ -183,7 +197,7 @@ const BookAppointment: React.FC = () => {
             required
           />
         </div>
-
+  
         <div className="mb-4">
           <label htmlFor="date" className="block text-lg font-medium mb-2">Select Date</label>
           <input
@@ -198,7 +212,7 @@ const BookAppointment: React.FC = () => {
           />
           {dateError && <p className="text-red-500 mt-2">{dateError}</p>}
         </div>
-
+  
         <div className="mb-6">
           <label className="block text-lg font-medium mb-2">Select Services</label>
           {filteredServices.map((service) => (
@@ -209,36 +223,49 @@ const BookAppointment: React.FC = () => {
                   value={service}
                   checked={selectedServices.includes(service)}
                   onChange={handleServiceChange}
-                  className="mr-2"
+                  className="hidden peer" 
                 />
+                <span className="w-5 h-5 border-2 border-gray-300 rounded-md mr-2 flex items-center justify-center peer-checked:bg-yellow-500 peer-checked:border-yellow-500">
+                  <svg
+                    className="w-4 h-4 text-white hidden peer-checked:block"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                </span>
                 {service}
               </label>
             </div>
           ))}
         </div>
-
         <div className="mb-4">
-          <label htmlFor="time" className="block text-lg font-medium mb-2">Select Time</label>
-          <select
-            id="time"
-            value={selectedTime}
-            onChange={handleTimeChange}
-            className="w-full p-2 border border-gray-300 rounded-lg"
-            required
-          >
-            <option value="" disabled>Select a time</option>
-            {availableTimes.length > 0 ? (
-              availableTimes.map((time) => (
-                <option key={time} value={time}>
-                  {time}
-                </option>
-              ))
-            ) : (
-              <option value="" disabled>No available times</option>
-            )}
-          </select>
-        </div>
-
+  <label htmlFor="time" className="block text-lg font-medium mb-2">Select Time</label>
+  <select
+    id="time"
+    value={selectedTime}
+    onChange={handleTimeChange}
+    className="w-full p-2 border border-gray-300 rounded-lg"
+    required
+    disabled={selectedServices.length === 0} 
+  >
+    <option value="" disabled>
+      {selectedServices.length === 0 ? "No available times" : "Select a time"}
+    </option>
+    {availableTimes.length > 0 && selectedServices.length > 0 ? (
+      availableTimes.map((time) => (
+        <option key={time} value={time}>
+          {time}
+        </option>
+      ))
+    ) : (
+      <option value="" disabled>No available times</option>
+    )}
+  </select>
+</div>
+  
         <button
           type="submit"
           className="w-full bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors duration-300"
@@ -246,7 +273,7 @@ const BookAppointment: React.FC = () => {
         >
           {status === "loading" ? "Booking..." : "Book Appointment"}
         </button>
-
+  
         {status === "error" && (
           <p className="mt-4 text-red-500">{errorMessage}</p>
         )}
@@ -256,6 +283,6 @@ const BookAppointment: React.FC = () => {
       </form>
     </div>
   );
-};
+}  
 
 export default BookAppointment;
