@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
@@ -6,20 +5,17 @@ from dotenv import load_dotenv
 import os
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from fastapi import FastAPI
 from dateutil import parser
+from pytz import timezone, utc
 import ssl
 import httplib2
-from pytz import timezone
-import schedule
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from pytz import utc
 
 ssl_context = ssl.create_default_context()
 http = httplib2.Http(ca_certs=ssl_context)
 
-# environment variables 
+# Environment variables
 load_dotenv()
 
 scheduler = AsyncIOScheduler(timezone=utc)
@@ -32,11 +28,44 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-@scheduler.scheduled_job('cron', second="*/1")
-async def fetch_current_time():
-    print('Fetching current time...')
+ba_tz = timezone('Europe/Sarajevo')
 
-# CORS setup 
+@scheduler.scheduled_job('cron', second="*/1")
+async def check_and_delete_unbooked_events():
+
+    print("Checking for unbooked events...")
+
+    now = datetime.now(utc)  
+    ten_minutes_ago = now - timedelta(minutes=10)
+
+    try:
+        events_result = calendar_service.events().list(
+            calendarId=CALENDAR_ID,
+            timeMin=ten_minutes_ago.isoformat(),  
+            maxResults=100,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+
+        events = events_result.get('items', [])
+        
+        for event in events:
+
+            is_booked = event.get('extendedProperties', {}).get('private', {}).get('isConfirmed', 'true')
+            
+            if is_booked == 'false':
+                event_creation_time = parser.isoparse(event['created']).astimezone(utc)
+
+                if (now - event_creation_time).total_seconds() > 600:  
+                    print(f"Deleting unconfirmed event: {event['id']}, created at {event_creation_time}")
+                    
+                    calendar_service.events().delete(calendarId=CALENDAR_ID, eventId=event['id']).execute()
+
+    except Exception as e:
+        print(f"Error checking or deleting events: {str(e)}")
+
+
+# CORS setup
 origins = [
     "https://full-stack-application-project-web.vercel.app",
     "http://localhost:3000",
@@ -50,7 +79,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 #service account information (should use .env variables later)
 SERVICE_ACCOUNT_INFO = {
     "type": "service_account",
@@ -151,11 +179,11 @@ async def get_free_time_for_date(selected_date: datetime, total_duration: int):
 @app.get("/get-free-time")
 async def get_free_time_endpoint(date: str, services: str = Query(...)):
     try:
-        # If services is an empty string or only contains whitespace, raise an error
+        # empty string raise error
         if not services.strip():
             raise HTTPException(status_code=400, detail="No service selected")
 
-        # Splitting the services string into a list
+        # Splitting the services string into list
         service_list = services.split(',')
         
         selected_date = parser.parse(date)
@@ -173,3 +201,26 @@ async def get_free_time_endpoint(date: str, services: str = Query(...)):
     
     except KeyError as e:
         raise HTTPException(status_code=400, detail=f"Service not found: {str(e)}")
+    
+@app.get("/confirm-booking")
+async def confirm_booking(eventId: str):
+    try:
+
+        all_events = await get_all_events()
+        event_exists = any(event['id'] == eventId for event in all_events)
+
+        if not event_exists:
+            raise HTTPException(status_code=404, detail="Event not found or has been deleted.")
+
+        event = calendar_service.events().get(calendarId=CALENDAR_ID, eventId=eventId).execute()
+
+        if event['extendedProperties']['private']['isConfirmed'] == 'false':
+            event['extendedProperties']['private']['isConfirmed'] = 'true'
+            
+            calendar_service.events().update(calendarId=CALENDAR_ID, eventId=eventId, body=event).execute()
+            
+            return {"message": "Appointment confirmed successfully!"}
+        else:
+            return {"message": "Appointment already confirmed."}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
