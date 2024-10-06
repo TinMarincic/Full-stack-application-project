@@ -20,13 +20,12 @@ const serviceDurations: { [key: string]: number } = {
   "Men's Haircut": 30,
   "Men's Beard": 20,
   "Children's Haircut": 20,
-
 };
 
-export async function sendConfirmationEmail(formdata: { email: string; services: string[]; date: string; time: string }) {
+export async function sendConfirmationEmail(formdata: { email: string; service_type: string[]; date: string; time: string }) {
+  const servicesList = formdata.service_type.join(", ");
+  
   try {
-    const servicesList = formdata.services.join(", ");
-    
     const info = await transporter.sendMail({
       from: `"Bella Frizerski Salon" <${process.env.EMAIL}>`, 
       to: formdata.email, 
@@ -52,7 +51,7 @@ export async function sendConfirmationEmail(formdata: { email: string; services:
   }
 }
 
-export async function book_appointment(formdata: { email: string; date: Date; services: string[]; time: Date }) {
+export async function book_appointment(formdata: { email: string; date: Date; service_type: string[]; time: Date }) {
   try {
     const auth = await google.auth.getClient({
       projectId: "bella-433413",
@@ -71,9 +70,9 @@ export async function book_appointment(formdata: { email: string; date: Date; se
     const startTime = new Date(formdata.date);
     startTime.setHours(formdata.time.getHours(), formdata.time.getMinutes());
 
-    // Calculate total duration based on selected services
-    const totalDuration = formdata.services.reduce((total, service) => {
-      return total + (serviceDurations[service] || 60); // Default to 60 minutes if service not found
+    // Calculate total duration for services
+    const totalDuration = formdata.service_type.reduce((total, service) => {
+      return total + (serviceDurations[service] || 60);
     }, 0);
 
     const endTime = new Date(startTime);
@@ -86,33 +85,39 @@ export async function book_appointment(formdata: { email: string; date: Date; se
     }
 
 
-    // If no conflict, proceed to create event
-    const event = await calendar.events.insert({
-      calendarId: "bella.frizerski.salon@gmail.com",
-      requestBody: {
-        summary: `Appointment for ${formdata.services.join(", ")}`,
-        description: `Services: ${formdata.services.join(", ")}\nCustomer Email: ${formdata.email}`,
-        start: { dateTime: startTime.toISOString(), timeZone: "Europe/Sarajevo" },
-        end: { dateTime: endTime.toISOString(), timeZone: "Europe/Sarajevo" },
+    // Create calendar event 
+    const servicesList = formdata.service_type.join(", ");
+    const event = {
+      summary: `${servicesList} Appointment`,
+      description: `Services: ${servicesList}`,
+      start: {
+        dateTime: startTime.toISOString(),
+        timeZone: "Europe/Sarajevo",
       },
+      end: {
+        dateTime: endTime.toISOString(),
+        timeZone: "Europe/Sarajevo",
+      }
+    };
+
+    const newEvent = await calendar.events.insert({
+      calendarId: "bella.frizerski.salon@gmail.com",
+      requestBody: event,
     });
 
+    console.log("Event created: %s", newEvent.data.htmlLink);
+
+    // Send confirmation email
     await sendConfirmationEmail({
       email: formdata.email,
-      services: formdata.services,
-      date: formdata.date.toDateString(),
-      time: formdata.time.toTimeString(),
+      service_type: formdata.service_type,
+      date: startTime.toDateString(),
+      time: startTime.toTimeString(),
     });
 
-    console.log("Appointment created:", event.data.id);
     return { success: true };
   } catch (error) {
-    if (error instanceof Error) {
-      console.error("Error booking appointment:", error.message);
-      return { success: false, error: error.message };
-    } else {
-      console.error("Unknown error occurred:", error);
-      return { success: false, error: "An unknown error occurred." };
-    }
+    console.error("Error booking appointment:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error occurred" };
   }
 }

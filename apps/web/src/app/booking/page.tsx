@@ -46,7 +46,8 @@ const BookAppointment: React.FC = () => {
 
   const handleGender_AgeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setGender_Age(e.target.value);
-    setSelectedServices([]); 
+    setSelectedServices([]);
+    setAvailableTimes([]); 
   };
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,33 +74,32 @@ const BookAppointment: React.FC = () => {
     setSelectedTime(e.target.value);
   };
 
-  const handleServiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selected = Array.from(e.target.selectedOptions, (option) => option.value);
-    setSelectedServices(selected);
+  const handleServiceChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const service = e.target.value;
+    const updatedServices = selectedServices.includes(service)
+      ? selectedServices.filter((s) => s !== service)
+      : [...selectedServices, service];
+
+    setSelectedServices(updatedServices);
+
+
     if (selectedDate) {
-      fetchAvailableTimes(selectedDate, selected);
+      await fetchAvailableTimes(selectedDate, updatedServices);
     }
   };
 
   const fetchAvailableTimes = async (date: string, services: string[]) => {
     try {
-      const serviceParam = services.join(","); 
       const response = await fetch(
-        `http://127.0.0.1:8000/get-free-time?date=${date}&services=${serviceParam}`
+        `http://127.0.0.1:8000/get-free-time?date=${date}&services=${services.join(",")}`
       );
       if (!response.ok) {
         throw new Error(`Error fetching available times: ${response.statusText}`);
       }
       const freeTimes = await response.json();
-
-      if (Array.isArray(freeTimes)) {
-        setAvailableTimes(freeTimes); 
-      } else {
-        setAvailableTimes([]); 
-      }
+      setAvailableTimes(freeTimes);
     } catch (error) {
       console.error("Error fetching available times:", error);
-      setAvailableTimes([]);
     }
   };
 
@@ -121,7 +121,7 @@ const BookAppointment: React.FC = () => {
       dateWithTime.setHours(adjustedHours, minutes);
 
       const totalDuration = selectedServices.reduce(
-        (sum, service) => sum + serviceDurations[service],
+        (acc, service) => acc + serviceDurations[service],
         0
       );
       const endTime = new Date(dateWithTime);
@@ -132,7 +132,7 @@ const BookAppointment: React.FC = () => {
         date: new Date(selectedDate),
         time: dateWithTime,
         end_time: endTime,
-        services: selectedServices,
+        service_type: selectedServices,
       };
 
       const response = await book_appointment(formData);
@@ -152,8 +152,6 @@ const BookAppointment: React.FC = () => {
 
   return (
     <div className="container mx-auto p-8 bg-gray-100 min-h-screen flex flex-col items-center justify-center relative">
-      <div className="absolute w-[24rem] h-[24rem] bg-gray-700 rounded-full left-[-12rem] top-1/2 transform -translate-y-1/2 overflow-hidden hidden lg:block"></div>
-      <div className="absolute w-[24rem] h-[24rem] bg-yellow-400 rounded-full left-[8rem] top-1/2 transform -translate-y-1/2 overflow-hidden hidden lg:block"></div>
       <h1 className="text-4xl font-bold mb-6 z-10">Book an Appointment</h1>
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full relative z-10">
         <div className="mb-4">
@@ -167,9 +165,7 @@ const BookAppointment: React.FC = () => {
             className="w-full p-2 border border-gray-300 rounded-lg"
             required
           >
-            <option value="" disabled>
-              Select Gender/Age
-            </option>
+            <option value="" disabled>Select Gender/Age</option>
             <option value="woman">Woman</option>
             <option value="man">Man</option>
             <option value="child">Child</option>
@@ -177,9 +173,7 @@ const BookAppointment: React.FC = () => {
         </div>
 
         <div className="mb-4">
-          <label htmlFor="email" className="block text-lg font-medium mb-2">
-            Email
-          </label>
+          <label htmlFor="email" className="block text-lg font-medium mb-2">Email</label>
           <input
             type="email"
             id="email"
@@ -191,9 +185,7 @@ const BookAppointment: React.FC = () => {
         </div>
 
         <div className="mb-4">
-          <label htmlFor="date" className="block text-lg font-medium mb-2">
-            Select Date
-          </label>
+          <label htmlFor="date" className="block text-lg font-medium mb-2">Select Date</label>
           <input
             type="date"
             id="date"
@@ -208,30 +200,25 @@ const BookAppointment: React.FC = () => {
         </div>
 
         <div className="mb-6">
-          <label htmlFor="service" className="block text-lg font-medium mb-2">
-            Type of Services
-          </label>
-          <select
-            id="service"
-            multiple 
-            size={filteredServices.length}
-            value={selectedServices}
-            onChange={handleServiceChange}
-            className="w-full p-2 border border-gray-300 rounded-lg"
-            required
-          >
-            {filteredServices.map((service) => (
-              <option key={service} value={service}>
+          <label className="block text-lg font-medium mb-2">Select Services</label>
+          {filteredServices.map((service) => (
+            <div key={service} className="mb-2">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  value={service}
+                  checked={selectedServices.includes(service)}
+                  onChange={handleServiceChange}
+                  className="mr-2"
+                />
                 {service}
-              </option>
-            ))}
-          </select>
+              </label>
+            </div>
+          ))}
         </div>
 
         <div className="mb-4">
-          <label htmlFor="time" className="block text-lg font-medium mb-2">
-            Select Time
-          </label>
+          <label htmlFor="time" className="block text-lg font-medium mb-2">Select Time</label>
           <select
             id="time"
             value={selectedTime}
@@ -239,27 +226,32 @@ const BookAppointment: React.FC = () => {
             className="w-full p-2 border border-gray-300 rounded-lg"
             required
           >
-            <option value="" disabled>
-              Select Time
-            </option>
-            {availableTimes.map((time, index) => (
-              <option key={index} value={time}>
-                {time}
-              </option>
-            ))}
+            <option value="" disabled>Select a time</option>
+            {availableTimes.length > 0 ? (
+              availableTimes.map((time) => (
+                <option key={time} value={time}>
+                  {time}
+                </option>
+              ))
+            ) : (
+              <option value="" disabled>No available times</option>
+            )}
           </select>
         </div>
 
         <button
           type="submit"
-          className="bg-yellow-400 text-white px-4 py-2 rounded-lg w-full mt-4"
+          className="w-full bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors duration-300"
           disabled={status === "loading"}
         >
           {status === "loading" ? "Booking..." : "Book Appointment"}
         </button>
-        {status === "error" && <p className="text-red-500 mt-4">{errorMessage}</p>}
+
+        {status === "error" && (
+          <p className="mt-4 text-red-500">{errorMessage}</p>
+        )}
         {status === "success" && (
-          <p className="text-green-500 mt-4">Appointment successfully booked!</p>
+          <p className="mt-4 text-green-500">Appointment booked successfully!</p>
         )}
       </form>
     </div>

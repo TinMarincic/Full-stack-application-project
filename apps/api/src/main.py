@@ -1,6 +1,5 @@
 
-from typing import List
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -20,22 +19,22 @@ from pytz import utc
 ssl_context = ssl.create_default_context()
 http = httplib2.Http(ca_certs=ssl_context)
 
-# environment variables loading
+# environment variables 
 load_dotenv()
 
-#scheduler = AsyncIOScheduler(timezone=utc)
+scheduler = AsyncIOScheduler(timezone=utc)
 
-#@asynccontextmanager
-#async def lifespan(app: FastAPI):
- #   scheduler.start()
-  #  yield
-   # scheduler.shutdown()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler.start()
+    yield
+    scheduler.shutdown()
 
-app = FastAPI()   #lifespan=lifespan)
+app = FastAPI(lifespan=lifespan)
 
-#@scheduler.scheduled_job('cron', second="*/1")
-#async def fetch_current_time():
- #   print('Fetching current time...')
+@scheduler.scheduled_job('cron', second="*/1")
+async def fetch_current_time():
+    print('Fetching current time...')
 
 # CORS setup 
 origins = [
@@ -79,9 +78,6 @@ calendar_service = build('calendar', 'v3', credentials=credentials)
 
 CALENDAR_ID = "bella.frizerski.salon@gmail.com"
 
-#užas hahahaha
-
-# service durations
 service_durations = {
   "Women's Haircut": 45,
   "Shampoo Blow Dry": 30,
@@ -89,89 +85,36 @@ service_durations = {
   "Highlights": 90,
   "Men's Haircut": 30,
   "Men's Beard": 20,
-  "Men's Haircut,Men's Beard" : 50,
-  "Men's Beard, Men's Haircut" : 50,
   "Children's Haircut": 20,
-  "Women's Haircut,Shampoo Blow Dry": 165,
-  "Women's Haircut,Full Hair Color": 75,
-  "Women's Haircut,Highlights": 135,
-  "Shampoo Blow Dry,Women's Haircut": 165,
-  "Shampoo Blow Dry,Full Hair Color": 150,
-  "Shampoo Blow Dry,Highlights": 120,
-  "Full Hair Color,Women's Haircut": 165,
-  "Full Hair Color,Shampoo Blow Dry": 150,
-  "Full Hair Color,Highlights": 210,
-  "Highlights,Women's Haircut": 135,
-  "Highlights,Shampoo Blow Dry": 120,
-  "Highlights,Full Hair Color": 210,
-  "Women's Haircut,Shampoo Blow Dry,Full Hair Color": 285,
-  "Women's Haircut,Full Hair Color,Shampoo Blow Dry": 285,
-  "Shampoo Blow Dry,Women's Haircut,Full Hair Color": 285,
-  "Shampoo Blow Dry,Full Hair Color,Women's Haircut": 285,
-  "Full Hair Color,Women's Haircut,Shampoo Blow Dry": 285,
-  "Full Hair Color,Shampoo Blow Dry,Women's Haircut": 285,
-  "Highlights,Full Hair Color,Shampoo Blow Dry": 240,
-  "Women's Haircut,Shampoo Blow Dry,Highlights": 255,
-  "Women's Haircut,Full Hair Color,Highlights": 300,
-  "Shampoo Blow Dry,Women's Haircut,Highlights": 255,
-  "Shampoo Blow Dry,Full Hair Color,Highlights": 240,
-  "Full Hair Color,Women's Haircut,Highlights": 300,
-  "Full Hair Color,Shampoo Blow Dry,Highlights": 240,
-  "Highlights,Women's Haircut,Full Hair Color": 300,
-  "Highlights,Shampoo Blow Dry,Full Hair Color": 240,
-  "Women's Haircut,Highlights,Shampoo Blow Dry": 255,
-  "Women's Haircut,Highlights,Full Hair Color": 300,
-  "Shampoo Blow Dry,Highlights,Women's Haircut": 255,
-  "Shampoo Blow Dry,Highlights,Full Hair Color": 240,
-  "Full Hair Color,Highlights,Women's Haircut": 300,
-  "Full Hair Color,Highlights,Shampoo Blow Dry": 240,
-  "Women's Haircut,Shampoo Blow Dry,Full Hair Color,Highlights": 375,
-  "Women's Haircut,Full Hair Color,Shampoo Blow Dry,Highlights": 375,
-  "Shampoo Blow Dry,Women's Haircut,Full Hair Color,Highlights": 375,
-  "Shampoo Blow Dry,Full Hair Color,Women's Haircut,Highlights": 375,
-  "Full Hair Color,Women's Haircut,Shampoo Blow Dry,Highlights": 375,
-  "Full Hair Color,Shampoo Blow Dry,Women's Haircut,Highlights": 375,
-  "Highlights,Women's Haircut,Full Hair Color,Shampoo Blow Dry": 375,
-  "Highlights,Shampoo Blow Dry,Women's Haircut,Full Hair Color": 375,
-  "Women's Haircut,Highlights,Shampoo Blow Dry,Full Hair Color": 375,
-  "Shampoo Blow Dry,Highlights,Women's Haircut,Full Hair Color": 375,
-  "Full Hair Color,Highlights,Women's Haircut,Shampoo Blow Dry": 375,
-  "Full Hair Color,Highlights,Shampoo Blow Dry,Women's Haircut": 375
 }
 
 
-# 1. Fetch all events from the Google Calendar
 async def get_all_events():
     events_result = calendar_service.events().list(
         calendarId=CALENDAR_ID,
         singleEvents=True,
         orderBy='startTime'
     ).execute()
-
+    
     events = events_result.get('items', [])
     return events
 
 ba_tz = timezone('Europe/Sarajevo')
 
-# Function to calculate total duration for selected services
-def calculate_total_duration(services: List[str]) -> int:
-    total_duration = sum(service_durations.get(service, 0) for service in services)
-    return total_duration
 
 async def get_free_time_for_date(selected_date: datetime, total_duration: int):
     selected_date = selected_date.astimezone(ba_tz)
 
     events = await get_all_events()
 
-    # timezone problems
     sorted_events = sorted(
         (e for e in events if parser.isoparse(e["start"]["dateTime"]).astimezone(ba_tz).date() == selected_date.date()), 
         key=lambda e: e["start"]["dateTime"]
     )
 
     free_timestamps = []
-    opening_time = selected_date.replace(hour=9, minute=0, second=0, microsecond=0)  #9 AM
-    closing_time = selected_date.replace(hour=18, minute=0, second=0, microsecond=0)  #6 PM
+    opening_time = selected_date.replace(hour=9, minute=0, second=0, microsecond=0)  # 9 AM
+    closing_time = selected_date.replace(hour=18, minute=0, second=0, microsecond=0)  # 6 PM
 
     last_end_time = opening_time
 
@@ -193,7 +136,6 @@ async def get_free_time_for_date(selected_date: datetime, total_duration: int):
             "end": closing_time.isoformat(),
         })
 
-    # time slots based on total service duration
     time_slots = []
     for interval in free_timestamps:
         start = parser.isoparse(interval["start"])
@@ -206,16 +148,24 @@ async def get_free_time_for_date(selected_date: datetime, total_duration: int):
 
     return time_slots
 
-# 3. API endpoint to get free time for a selected date
+
 @app.get("/get-free-time")
-async def get_free_time_endpoint(date: str, services: List[str] = Query(...)):
-    selected_date = parser.parse(date)
-
-    for service in services:
-        if service not in service_durations:
-            return {"error": f"Service '{service}' not found"}
-
-    total_duration = calculate_total_duration(services)  
+async def get_free_time_endpoint(date: str, services: str = Query(...)):
+    try:
+        # Splitting the services string into a list
+        service_list = services.split(',')
+        
+        selected_date = parser.parse(date)
+        
+        total_duration = 0
+        for service in service_list:
+            if service.strip() in service_durations:
+                total_duration += service_durations[service.strip()]
+            else:
+                raise HTTPException(status_code=400, detail=f"Invalid service: {service}")
+        
+        free_time_slots = await get_free_time_for_date(selected_date, total_duration)
+        return free_time_slots
     
-    free_time_slots = await get_free_time_for_date(selected_date, total_duration)
-    return free_time_slots
+    except KeyError as e:
+        raise HTTPException(status_code=400, detail=f"Service not found: {str(e)}")
