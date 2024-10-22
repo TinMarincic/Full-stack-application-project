@@ -25,6 +25,7 @@ const serviceDurations: { [key: string]: number } = {
 export async function sendConfirmationEmail(formdata: { email: string; service_type: string[]; date: string; time: string, eventId: string }) {
   const servicesList = formdata.service_type.join(", ");
   const confirmationButton = `http://127.0.0.1:8000/confirm-booking?eventId=${formdata.eventId}`;
+  const cancellationButton = `http://127.0.0.1:8000/cancel-booking?eventId=${formdata.eventId}`;
 
   try {
     const info = await transporter.sendMail({
@@ -36,7 +37,9 @@ export async function sendConfirmationEmail(formdata: { email: string; service_t
              <p><strong>Services:</strong> ${servicesList}</p>
              <p><strong>Date:</strong> ${formdata.date}</p>
              <p><strong>Time:</strong> ${formdata.time}</p>
-             <p><a href="${confirmationButton}" style="background-color: #FDD835; color: white; padding: 10px 20px; text-align: center; radius : 20px; text-decoration: none; display: inline-block; font-size: 16px;">Confirm Appointment</a></p>
+             <p><a href="${confirmationButton}" style="background-color: #FDD835; color: white; padding: 10px 20px; text-align: center; radius: 20px; text-decoration: none; display: inline-block; font-size: 16px;">Confirm Appointment</a></p>
+             <p>If you want to cancel your appointment, please do it in a timely manner!</p>
+             <p><a href="${cancellationButton}" style="background-color: red; color: white; padding: 10px 20px; text-align: center; radius: 20px; text-decoration: none; display: inline-block; font-size: 16px;">Cancel Appointment</a></p>
              <p>Thank you for choosing Bella Frizerski Salon. We look forward to seeing you!</p>`, 
     });
 
@@ -45,6 +48,34 @@ export async function sendConfirmationEmail(formdata: { email: string; service_t
   } catch (error) {
     if (error instanceof Error) {
       console.error("Error sending confirmation email:", error.message);
+      return { success: false, error: error.message };
+    } else {
+      console.error("Unknown error occurred:", error);
+      return { success: false, error: "An unknown error occurred." };
+    }
+  }
+}
+
+export async function sendReminderEmail(formdata: { email: string; service_type: string; weeks_since_service: number; service_frequency: number }) {
+  const bookingLink = `http://localhost:3000/booking`;
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"Bella Frizerski Salon" <${process.env.EMAIL}>`, 
+      to: formdata.email, 
+      subject: `Time for your next ${formdata.service_type}!`, 
+      html: `<p>Dear customer,</p>
+             <p>It's been ${formdata.weeks_since_service} weeks since your last ${formdata.service_type}.</p>
+             <p>At Bella Frizerski Salon, we recommend scheduling your ${formdata.service_type} every ${formdata.service_frequency} weeks.</p>
+             <p>We'd love to see you again! <a href="${bookingLink}" style="background-color: #FDD835; color: white; padding: 10px 20px; text-align: center; radius: 20px; text-decoration: none; display: inline-block; font-size: 16px;">Click here to book your next appointment</a>.</p>
+             <p>Thank you for choosing Bella Frizerski Salon!</p>`, 
+    });
+
+    console.log("Reminder email sent: %s", info.messageId);
+    return { success: true };
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error("Error sending reminder email:", error.message);
       return { success: false, error: error.message };
     } else {
       console.error("Unknown error occurred:", error);
@@ -100,7 +131,7 @@ export async function book_appointment(formdata: { email: string; date: Date; se
 
     const servicesList = formdata.service_type.join(", ");
     const event = {
-      summary: `${servicesList} Appointment`,
+      summary: `${servicesList}`,
       description: `Services: ${servicesList}`,
       start: {
         dateTime: startTime.toISOString(),
@@ -113,6 +144,7 @@ export async function book_appointment(formdata: { email: string; date: Date; se
       extendedProperties: {
         private: {
           isConfirmed: "false",  
+          email: formdata.email,
         },
       },
     };

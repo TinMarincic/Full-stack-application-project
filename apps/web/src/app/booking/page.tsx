@@ -278,7 +278,7 @@ const BookAppointment: React.FC = () => {
           <p className="mt-4 text-red-500">{errorMessage}</p>
         )}
         {status === "success" && (
-          <p className="mt-4 text-green-500">Appointment booked successfully!</p>
+          <p className="mt-4 text-green-500">Appointment booked successfully! An email willl be sent to you shortly, please confirm your appointment within 10 minutes </p>
         )}
       </form>
     </div>

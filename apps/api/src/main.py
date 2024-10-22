@@ -11,6 +11,9 @@ import ssl
 import httplib2
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 ssl_context = ssl.create_default_context()
 http = httplib2.Http(ca_certs=ssl_context)
@@ -29,11 +32,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 ba_tz = timezone('Europe/Sarajevo')
-
+""" 
 @scheduler.scheduled_job('cron', second="*/1")
 async def check_and_delete_unbooked_events():
 
-    print("Checking for unbooked events...")
+    print("Checking for unconfirmed events...")
 
     now = datetime.now(utc)  
     ten_minutes_ago = now - timedelta(minutes=10)
@@ -63,6 +66,98 @@ async def check_and_delete_unbooked_events():
 
     except Exception as e:
         print(f"Error checking or deleting events: {str(e)}")
+"""
+service_frequencies = { 
+    "Men's Haircut": 4,  
+    "Women's Haircut": 6,
+    "Shampoo Blow Dry": 6,
+    "Full Hair Color": 8,
+    "Highlights": 8,
+    "Men's Beard": 2,
+    "Children's Haircut": 8,
+}
+async def send_reminder_email(email: str, service_type: str, minutes_since_service: int, service_frequency: int):
+    booking_link = "http://localhost:3000/booking"
+    subject = f"Time for your next {service_type}!"
+    body = (f"Dear customer,\n\n"
+            f"It's been {minutes_since_service} minutes since your last {service_type}.\n"
+            f"At Bella Frizerski Salon, we recommend scheduling your {service_type} every {service_frequency} minutes.\n\n"
+            f"We'd love to see you again! Click here to book your next appointment: {booking_link}\n\n"
+            "Thank you for choosing Bella Frizerski Salon!")
+
+    try:
+       
+        msg = MIMEMultipart()
+        msg['From'] = f'"Bella Frizerski Salon" <{os.getenv("EMAIL")}>' 
+        msg['To'] = email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+
+        
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(os.getenv("EMAIL"), os.getenv("GMAIL_PASSWORD"))
+            server.sendmail(msg['From'], email, msg.as_string())
+
+        print(f"Reminder email successfully sent to {email}")
+
+    except Exception as e:
+        print(f"Error sending email to {email}: {str(e)}")
+        raise  
+
+
+@scheduler.scheduled_job('cron', minute="*/1")
+async def check_service_frequency():
+    now = datetime.now(utc)
+    five_minutes_ago = now - timedelta(minutes=60)  
+
+    print("Checking for events in the last 60 minutes...")
+
+    try:
+        events_result = calendar_service.events().list(
+            calendarId=CALENDAR_ID,
+            maxResults=100,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+
+        events = events_result.get('items', [])
+
+        if not events:
+            print("No events found in the last 60 minutes.")
+            return
+
+        for event in events:
+            service_type = event.get('summary', None)
+            extended_properties = event.get('extendedProperties', {}).get('private', {})
+            email = extended_properties.get('email', None)
+
+            if service_type is None:
+                print(f"Service type missing for event {event['id']}. Skipping.")
+                continue
+
+            if email is None:
+                print(f"No email found for event {event['id']}. Skipping.")
+                continue
+
+            start_time = parser.isoparse(event['start']['dateTime']).astimezone(utc)
+            minutes_since_service = (now - start_time).total_seconds() // 60  
+
+            print(f"Service {service_type} for {email}: {minutes_since_service} minutes since service.")
+
+            if service_type in service_frequencies:
+                service_frequency = service_frequencies[service_type]
+
+                if minutes_since_service >= service_frequency:
+                    print(f"Sending reminder for {service_type} to {email}.")
+                    await send_reminder_email(email, service_type, int(minutes_since_service), service_frequency)
+                else:
+                    print(f"Service {service_type} for {email} not due. {minutes_since_service} minutes passed.")
+            else:
+                print(f"Service type {service_type} not found in service_frequencies.")
+
+    except Exception as e:
+        print(f"Error fetching or processing events: {str(e)}")
+        raise  
 
 
 # CORS setup
@@ -222,5 +317,19 @@ async def confirm_booking(eventId: str):
             return {"message": "Appointment confirmed successfully!"}
         else:
             return {"message": "Appointment already confirmed."}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/cancel-booking")
+async def cancel_booking(eventId: str):
+    try:
+        event = calendar_service.events().get(calendarId=CALENDAR_ID, eventId=eventId).execute()
+
+        if event:
+            calendar_service.events().delete(calendarId=CALENDAR_ID, eventId=eventId).execute()
+            return {"message": "Booking canceled successfully."}
+        else:
+            raise HTTPException(status_code=404, detail="Event not found or has been deleted.")
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
