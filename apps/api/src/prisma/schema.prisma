@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client-py"
 }
 
 datasource db {
@@ -10,11 +10,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Appointment {
-  id         Int      @id @default(autoincrement())
-  genderAge  String
-  email      String
-  service    String
-  date       DateTime
-  createdAt  DateTime @default(now())
+model UserReminders {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  dontRemind  Boolean  @default(false)
+  createdAt   DateTime @default(now())
 }
+

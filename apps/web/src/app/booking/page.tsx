@@ -157,6 +157,13 @@ const BookAppointment: React.FC = () => {
         setStatus("error");
       } else {
         setStatus("success");
+
+        setGender_Age("");
+        setEmail("");
+        setSelectedDate("");
+        setAvailableTimes([]);
+        setSelectedTime("");
+        setSelectedServices([]);
       }
     } catch (error) {
       setStatus("error");

@@ -145,6 +145,7 @@ export async function book_appointment(formdata: { email: string; date: Date; se
         private: {
           isConfirmed: "false",  
           email: formdata.email,
+          reminderSent: "false",
         },
       },
     };

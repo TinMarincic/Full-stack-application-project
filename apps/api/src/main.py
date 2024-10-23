@@ -14,6 +14,13 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from pathlib import Path
+
+os.environ['USERPROFILE'] = str(Path('C:/Users/tinma')) 
+
+from prisma import Prisma
+prisma = Prisma()
+
 
 ssl_context = ssl.create_default_context()
 http = httplib2.Http(ca_certs=ssl_context)
@@ -32,7 +39,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 ba_tz = timezone('Europe/Sarajevo')
-""" 
+
 @scheduler.scheduled_job('cron', second="*/1")
 async def check_and_delete_unbooked_events():
 
@@ -66,55 +73,69 @@ async def check_and_delete_unbooked_events():
 
     except Exception as e:
         print(f"Error checking or deleting events: {str(e)}")
-"""
-service_frequencies = { 
-    "Men's Haircut": 4,  
-    "Women's Haircut": 6,
-    "Shampoo Blow Dry": 6,
-    "Full Hair Color": 8,
-    "Highlights": 8,
-    "Men's Beard": 2,
-    "Children's Haircut": 8,
+
+service_frequencies = {  
+    "Men's Haircut": 1 / 24,  
+    "Women's Haircut": 1 / 24,     
+    "Shampoo Blow Dry": 1 / 24,    
+    "Full Hair Color": 1 / 24,     
+    "Highlights": 1 / 24,          
+    "Men's Beard": 1 / 24,    
+    "Children's Haircut": 1 / 24   
 }
-async def send_reminder_email(email: str, service_type: str, minutes_since_service: int, service_frequency: int):
-    booking_link = "http://localhost:3000/booking"
-    subject = f"Time for your next {service_type}!"
-    body = (f"Dear customer,\n\n"
-            f"It's been {minutes_since_service} minutes since your last {service_type}.\n"
-            f"At Bella Frizerski Salon, we recommend scheduling your {service_type} every {service_frequency} minutes.\n\n"
-            f"We'd love to see you again! Click here to book your next appointment: {booking_link}\n\n"
-            "Thank you for choosing Bella Frizerski Salon!")
+
+# Function to send reminder emails
+def send_email_reminder(recipient_email, service_name):
+    sender_email = os.getenv('EMAIL')
+    sender_password = os.getenv('GMAIL_PASSWORD')
+
+    message = MIMEMultipart("alternative")
+    message["Subject"] = f"Reminder: Time to book your {service_name} appointment"
+    message["From"] = sender_email
+    message["To"] = recipient_email
+
+    text = f"Hi, it's time to book your next {service_name} appointment! Don't forget to schedule it soon."
+    html = f"""
+    <html>
+    <body>
+        <p>Hi,<br>
+        It's time to book your next <strong>{service_name}</strong> appointment!<br>
+        Don't forget to schedule it soon.
+        </p>
+        <p>If you don't want to receive these reminders, 
+        <a href="{os.getenv('NEXT_PUBLIC_API_URL')}/opt-out?email={recipient_email}&service={service_name}">
+        click here to stop receiving them</a>.
+        </p>
+    </body>
+    </html>
+    """
+    part1 = MIMEText(text, "plain")
+    part2 = MIMEText(html, "html")
+    message.attach(part1)
+    message.attach(part2)
 
     try:
-       
-        msg = MIMEMultipart()
-        msg['From'] = f'"Bella Frizerski Salon" <{os.getenv("EMAIL")}>' 
-        msg['To'] = email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
-
-        
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-            server.login(os.getenv("EMAIL"), os.getenv("GMAIL_PASSWORD"))
-            server.sendmail(msg['From'], email, msg.as_string())
-
-        print(f"Reminder email successfully sent to {email}")
-
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ssl_context) as server:
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, recipient_email, message.as_string())
+        print(f"Reminder email sent to {recipient_email}")
     except Exception as e:
-        print(f"Error sending email to {email}: {str(e)}")
-        raise  
+        print(f"Error sending email: {str(e)}")
 
-
+# Cronjob to check if an email reminder is needed
 @scheduler.scheduled_job('cron', minute="*/1")
-async def check_service_frequency():
-    now = datetime.now(utc)
-    five_minutes_ago = now - timedelta(minutes=60)  
-
-    print("Checking for events in the last 60 minutes...")
+async def check_for_reminders():
+    print("Checking for appointment reminders...")
 
     try:
+        now = datetime.now(utc)
+        two_hours_ago = now - timedelta(hours=2)
+
+        # Fetch appointments from the last 2 hours
         events_result = calendar_service.events().list(
             calendarId=CALENDAR_ID,
+            timeMin=two_hours_ago.isoformat(),
+            timeMax=now.isoformat(),
             maxResults=100,
             singleEvents=True,
             orderBy='startTime'
@@ -122,42 +143,44 @@ async def check_service_frequency():
 
         events = events_result.get('items', [])
 
-        if not events:
-            print("No events found in the last 60 minutes.")
-            return
-
         for event in events:
-            service_type = event.get('summary', None)
             extended_properties = event.get('extendedProperties', {}).get('private', {})
-            email = extended_properties.get('email', None)
-
-            if service_type is None:
-                print(f"Service type missing for event {event['id']}. Skipping.")
-                continue
-
-            if email is None:
-                print(f"No email found for event {event['id']}. Skipping.")
-                continue
-
+            email = extended_properties.get('email')
+            service_description = event.get('summary')
+            reminder_sent = extended_properties.get('reminderSent')  
             start_time = parser.isoparse(event['start']['dateTime']).astimezone(utc)
-            minutes_since_service = (now - start_time).total_seconds() // 60  
 
-            print(f"Service {service_type} for {email}: {minutes_since_service} minutes since service.")
+            if reminder_sent == 'true':
+                continue
 
-            if service_type in service_frequencies:
-                service_frequency = service_frequencies[service_type]
+            if await check_if_user_opted_out(email):
+                print(f"User {email} has opted out of reminders.")
+                continue
 
-                if minutes_since_service >= service_frequency:
-                    print(f"Sending reminder for {service_type} to {email}.")
-                    await send_reminder_email(email, service_type, int(minutes_since_service), service_frequency)
-                else:
-                    print(f"Service {service_type} for {email} not due. {minutes_since_service} minutes passed.")
-            else:
-                print(f"Service type {service_type} not found in service_frequencies.")
+            for service_name, frequency_hours in service_frequencies.items():
+                if service_name in service_description:
+                    time_since_service = (now - start_time).total_seconds() / 3600  
+
+                    if time_since_service >= frequency_hours:
+                        print(f"Sending reminder for {service_name} to {email}")
+                        send_email_reminder(email, service_name)
+
+                        event['extendedProperties'] = {
+                            'private': {
+                                **extended_properties,
+                                'reminderSent': 'true'
+                            }
+                        }
+                        calendar_service.events().update(
+                            calendarId=CALENDAR_ID,
+                            eventId=event['id'],
+                            body=event
+                        ).execute()
+                    break
 
     except Exception as e:
-        print(f"Error fetching or processing events: {str(e)}")
-        raise  
+        print(f"Error checking appointments or sending reminders: {str(e)}")
+
 
 
 # CORS setup
@@ -210,6 +233,12 @@ service_durations = {
   "Men's Beard": 20,
   "Children's Haircut": 20,
 }
+
+async def check_if_user_opted_out(email: str) -> bool:
+    await prisma.connect()
+    reminder_record = await prisma.userreminders.find_unique(where={'email': email})
+    await prisma.disconnect()
+    return reminder_record is not None and reminder_record.dontRemind
 
 
 async def get_all_events():
@@ -274,11 +303,9 @@ async def get_free_time_for_date(selected_date: datetime, total_duration: int):
 @app.get("/get-free-time")
 async def get_free_time_endpoint(date: str, services: str = Query(...)):
     try:
-        # empty string raise error
         if not services.strip():
             raise HTTPException(status_code=400, detail="No service selected")
-
-        # Splitting the services string into list
+        
         service_list = services.split(',')
         
         selected_date = parser.parse(date)
@@ -333,3 +360,27 @@ async def cancel_booking(eventId: str):
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/opt-out")
+async def opt_out(email: str, service: str):
+    try:
+        await prisma.connect()
+        reminder_record = await prisma.userreminders.find_unique(where={'email': email})
+        
+        if reminder_record:
+            await prisma.userreminders.update(
+                where={'email': email},
+                data={'dontRemind': True, 'service': service}
+            )
+        else:
+            await prisma.userreminders.create(
+                data={'email': email, 'dontRemind': True, 'service': service}
+            )
+        
+        await prisma.disconnect()
+
+        return {"message": f"You have successfully opted out of {service} reminders."}
+
+    except Exception as e:
+        await prisma.disconnect()
+        raise HTTPException(status_code=500, detail=f"Error updating opt-out preference: {str(e)}")
