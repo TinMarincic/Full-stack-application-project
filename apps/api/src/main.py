@@ -103,7 +103,7 @@ def send_email_reminder(recipient_email, service_name):
         Don't forget to schedule it soon.
         </p>
         <p>If you don't want to receive these reminders, 
-        <a href="{os.getenv('NEXT_PUBLIC_API_URL')}/opt-out?email={recipient_email}&service={service_name}">
+        <a href="http://127.0.0.1:8000/opt-out?email={recipient_email}">
         click here to stop receiving them</a>.
         </p>
     </body>
@@ -362,7 +362,7 @@ async def cancel_booking(eventId: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/opt-out")
-async def opt_out(email: str, service: str):
+async def opt_out(email: str):
     try:
         await prisma.connect()
         reminder_record = await prisma.userreminders.find_unique(where={'email': email})
@@ -370,16 +370,16 @@ async def opt_out(email: str, service: str):
         if reminder_record:
             await prisma.userreminders.update(
                 where={'email': email},
-                data={'dontRemind': True, 'service': service}
+                data={'dontRemind': True}
             )
         else:
             await prisma.userreminders.create(
-                data={'email': email, 'dontRemind': True, 'service': service}
+                data={'email': email, 'dontRemind': True}
             )
         
         await prisma.disconnect()
 
-        return {"message": f"You have successfully opted out of {service} reminders."}
+        return {"message": f"You have successfully opted out of reminders."}
 
     except Exception as e:
         await prisma.disconnect()
