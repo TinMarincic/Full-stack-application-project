@@ -16,7 +16,7 @@ service_frequencies = {
 @patch('apps.api.src.main.datetime')
 async def test_check_for_reminders(mock_datetime, mock_send_email_reminder, mock_events):
     # Mock time
-    mock_now = datetime(2024, 10, 23, tzinfo=utc)
+    mock_now = datetime.now(tz=utc)
     mock_datetime.now.return_value = mock_now
     
     # Mock data
@@ -49,6 +49,8 @@ async def test_check_for_reminders(mock_datetime, mock_send_email_reminder, mock
     
 
     await check_for_reminders()
+    
+    print("send_email_reminder calls:", mock_send_email_reminder.call_args_list)
 
     mock_send_email_reminder.assert_any_call('user@example.com', "Women's Haircut")
 

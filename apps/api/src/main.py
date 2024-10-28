@@ -15,6 +15,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
+from googleapiclient.errors import HttpError
 
 os.environ['USERPROFILE'] = str(Path('C:/Users/tinma')) 
 
@@ -323,42 +324,60 @@ async def get_free_time_endpoint(date: str, services: str = Query(...)):
     
     except KeyError as e:
         raise HTTPException(status_code=400, detail=f"Service not found: {str(e)}")
-    
+
 @app.get("/confirm-booking")
 async def confirm_booking(eventId: str):
     try:
-
+        # Check if the event exists
         all_events = await get_all_events()
         event_exists = any(event['id'] == eventId for event in all_events)
-
         if not event_exists:
+            # Raise 404 if event is not found in get_all_events
             raise HTTPException(status_code=404, detail="Event not found or has been deleted.")
 
-        event = calendar_service.events().get(calendarId=CALENDAR_ID, eventId=eventId).execute()
+        # Retrieve the specific event from Google Calendar API
+        try:
+            event = calendar_service.events().get(calendarId=CALENDAR_ID, eventId=eventId).execute()
+        except HttpError as e:
+            if e.resp.status == 404:
+                raise HTTPException(status_code=404, detail="Event not found or has been deleted.")
+            else:
+                raise HTTPException(status_code=400, detail=f"Error with Google Calendar API: {e}")
 
-        if event['extendedProperties']['private']['isConfirmed'] == 'false':
+        # Confirm the event if not already confirmed
+        if event['extendedProperties']['private'].get('isConfirmed') == 'false':
             event['extendedProperties']['private']['isConfirmed'] = 'true'
-            
             calendar_service.events().update(calendarId=CALENDAR_ID, eventId=eventId, body=event).execute()
-            
             return {"message": "Appointment confirmed successfully!"}
-        else:
-            return {"message": "Appointment already confirmed."}
+        
+        return {"message": "Appointment already confirmed."}
+        
+    except HTTPException as http_err:
+        # Return the specific HTTP error raised
+        raise http_err
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
+        # Raise a 500 error for any other unexpected issues
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+    
 @app.get("/cancel-booking")
 async def cancel_booking(eventId: str):
     try:
+        # Attempt to retrieve the event
         event = calendar_service.events().get(calendarId=CALENDAR_ID, eventId=eventId).execute()
 
-        if event:
-            calendar_service.events().delete(calendarId=CALENDAR_ID, eventId=eventId).execute()
-            return {"message": "Booking canceled successfully."}
-        else:
+        # If event is found, delete it
+        calendar_service.events().delete(calendarId=CALENDAR_ID, eventId=eventId).execute()
+        return {"message": "Booking canceled successfully."}
+
+    except HttpError as e:
+        # Handle the case where the event is not found (404)
+        if e.resp.status == 404:
             raise HTTPException(status_code=404, detail="Event not found or has been deleted.")
+        # Handle other HttpErrors as 400
+        raise HTTPException(status_code=400, detail=str(e))
 
     except Exception as e:
+        # General error handling
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/opt-out")
@@ -368,6 +387,10 @@ async def opt_out(email: str):
         reminder_record = await prisma.userreminders.find_unique(where={'email': email})
         
         if reminder_record:
+            if reminder_record.dontRemind:
+                await prisma.disconnect()
+                return {"message": "You have already opted out of reminders."}
+
             await prisma.userreminders.update(
                 where={'email': email},
                 data={'dontRemind': True}
@@ -378,9 +401,9 @@ async def opt_out(email: str):
             )
         
         await prisma.disconnect()
-
-        return {"message": f"You have successfully opted out of reminders."}
+        return {"message": "You have successfully opted out of reminders."}
 
     except Exception as e:
         await prisma.disconnect()
         raise HTTPException(status_code=500, detail=f"Error updating opt-out preference: {str(e)}")
+    
