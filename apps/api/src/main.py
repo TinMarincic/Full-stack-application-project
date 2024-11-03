@@ -164,7 +164,7 @@ async def check_for_reminders():
 
                     if time_since_service >= frequency_hours:
                         print(f"Sending reminder for {service_name} to {email}")
-                        send_email_reminder(email, service_name)
+                        await send_email_reminder(email, service_name)
 
                         event['extendedProperties'] = {
                             'private': {

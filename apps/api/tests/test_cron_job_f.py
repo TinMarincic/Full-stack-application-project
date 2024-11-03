@@ -1,59 +1,97 @@
-import pytest
-from unittest.mock import patch
-from datetime import datetime, timedelta
-from pytz import utc
-from apps.api.src.main import check_for_reminders  
+import unittest
+from unittest.mock import AsyncMock, patch, MagicMock
+from datetime import datetime, timedelta, timezone
+from apps.api.src.main import check_for_reminders
 
+class TestCheckForReminders(unittest.IsolatedAsyncioTestCase):
+    @patch('apps.api.src.main.datetime')
+    @patch('apps.api.src.main.calendar_service')
+    @patch('apps.api.src.main.send_email_reminder', new_callable=AsyncMock)
+    @patch('apps.api.src.main.check_if_user_opted_out')
+    async def test_send_reminder(self, mock_opt_out, mock_send_email, mock_calendar_service, mock_datetime):
+        now = datetime.now(timezone.utc)
+        mock_datetime.now.return_value = now
 
-service_frequencies = {
-    "Men's Haircut": 4,  
-    "Women's Haircut": 8  
-}
+        # Setting up the mock event
+        mock_event = {
+            'id': '1',
+            'start': {'dateTime': (now - timedelta(hours=5)).isoformat()},
+            'extendedProperties': {'private': {'email': 'test@example.com', 'reminderSent': 'false'}},
+            'summary': "Men's Haircut"
+        }
+        mock_calendar_service.events().list().execute.return_value = {'items': [mock_event]}
+        mock_opt_out.return_value = False
 
-@pytest.mark.asyncio
-@patch('apps.api.src.main.calendar_service.events')
-@patch('apps.api.src.main.send_email_reminder')
-@patch('apps.api.src.main.datetime')
-async def test_check_for_reminders(mock_datetime, mock_send_email_reminder, mock_events):
-    # Mock time
-    mock_now = datetime.now(tz=utc)
-    mock_datetime.now.return_value = mock_now
-    
-    # Mock data
-    mock_events().list().execute.return_value = {
-        'items': [
-            {
-                'extendedProperties': {
-                    'private': {
-                        'email': 'test@example.com'
-                    }
-                },
-                'summary': "Men's Haircut",
-                'start': {
-                    'dateTime': (mock_now - timedelta(weeks=3)).isoformat() 
-                }
-            },
-            {
-                'extendedProperties': {
-                    'private': {
-                        'email': 'user@example.com'
-                    }
-                },
-                'summary': "Women's Haircut",
-                'start': {
-                    'dateTime': (mock_now - timedelta(weeks=9)).isoformat()  
-                }
-            }
-        ]
-    }
-    
+        # Run the test and verify
+        await check_for_reminders()
+        
+        # Verify email was sent
+        mock_send_email.assert_called_once_with('test@example.com', "Men's Haircut")
 
-    await check_for_reminders()
-    
-    print("send_email_reminder calls:", mock_send_email_reminder.call_args_list)
+        # Verify event update to mark reminder as sent
+        mock_calendar_service.events().update.assert_called_once()
+        updated_event = mock_calendar_service.events().update.call_args[1]['body']
+        self.assertEqual(updated_event['extendedProperties']['private']['reminderSent'], 'true')
 
-    mock_send_email_reminder.assert_any_call('user@example.com', "Women's Haircut")
+    @patch('apps.api.src.main.datetime')
+    @patch('apps.api.src.main.calendar_service')
+    @patch('apps.api.src.main.check_if_user_opted_out')
+    async def test_opted_out_user(self, mock_opt_out, mock_calendar_service, mock_datetime):
+        # Set up current time
+        now = datetime.now(timezone.utc)
+        mock_datetime.now.return_value = now
 
-    assert not any(call.args == ('test@example.com', "Men's Haircut") for call in mock_send_email_reminder.call_args_list)
+        # Mocking the calendar service response with one event
+        mock_event = {
+            'id': '1',
+            'start': {'dateTime': (now - timedelta(hours=5)).isoformat()},
+            'extendedProperties': {'private': {'email': 'opted_out@example.com', 'reminderSent': 'false'}},
+            'summary': 'Haircut'
+        }
+        mock_calendar_service.events().list().execute.return_value = {'items': [mock_event]}
 
-    assert mock_send_email_reminder.call_count == 1  
+        # Mocking that the user opted out
+        mock_opt_out.return_value = True
+
+        # Run the cron job
+        await check_for_reminders()
+
+        # Check that the email reminder was not sent
+        mock_calendar_service.events().update.assert_not_called()
+
+    @patch('apps.api.src.main.datetime')
+    @patch('apps.api.src.main.calendar_service')
+    async def test_reminder_already_sent(self, mock_calendar_service, mock_datetime):
+        # Set up current time
+        now = datetime.now(timezone.utc)
+        mock_datetime.now.return_value = now
+
+        # Mocking the calendar service response with one event that already has reminderSent set to 'true'
+        mock_event = {
+            'id': '1',
+            'start': {'dateTime': (now - timedelta(hours=5)).isoformat()},
+            'extendedProperties': {'private': {'email': 'test@example.com', 'reminderSent': 'true'}},
+            'summary': 'Haircut'
+        }
+        mock_calendar_service.events().list().execute.return_value = {'items': [mock_event]}
+
+        # Run the cron job
+        await check_for_reminders()
+
+        # Check that no update or email was sent
+        mock_calendar_service.events().update.assert_not_called()
+
+    @patch('apps.api.src.main.datetime')
+    @patch('apps.api.src.main.calendar_service')
+    async def test_handle_exception(self, mock_calendar_service, mock_datetime):
+        # Mock an exception raised by calendar service
+        mock_calendar_service.events().list.side_effect = Exception("API Error")
+
+        # Run the cron job and expect no exceptions to propagate
+        try:
+            await check_for_reminders()
+        except Exception:
+            self.fail("check_for_reminders raised an exception unexpectedly!")
+
+if __name__ == '__main__':
+    unittest.main()
