@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "uvicorn src.main:app --reload",
+    "dev": "prisma generate && uvicorn src.main:app --reload",
     "build": ""
   }
 }
