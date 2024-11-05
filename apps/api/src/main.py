@@ -407,3 +407,7 @@ async def opt_out(email: str):
         await prisma.disconnect()
         raise HTTPException(status_code=500, detail=f"Error updating opt-out preference: {str(e)}")
     
+
+if __name__ == '__main__':
+    import uvicorn
+    uvicorn.run(app)
