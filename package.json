@@ -4,7 +4,8 @@
     "scripts": {
         "dev": "turbo run dev",
         "test": "jest",
-        "postinstall": "prisma generate"
+        "postinstall": "prisma generate",
+        "build": "prisma generate && turbo run build"
     },
     "devDependencies": {
         "@babel/preset-env": "^7.26.0",
