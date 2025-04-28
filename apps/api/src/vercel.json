@@ -1,17 +1,17 @@
 {
   "version": 2,
-  "buildCommand": "pip install -r apps/api/src/requirements.txt && pip install prisma && prisma generate --schema=prisma/schema.prisma",
-  "devCommand": "pip install -r apps/api/src/requirements.txt && pip install prisma && prisma generate --schema=prisma/schema.prisma",
+  "buildCommand": "pip install -r api/requirements.txt && pip install prisma && prisma generate --schema=prisma/schema.prisma",
+  "devCommand": "pip install -r api/requirements.txt && pip install prisma && prisma generate --schema=prisma/schema.prisma",
   "builds": [
     {
-      "src": "apps/api/src/main.py",
+      "src": "api/main.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "apps/api/src/main.py"
+      "dest": "api/main.py"
     }
   ]
 }
