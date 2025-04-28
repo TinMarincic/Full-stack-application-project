@@ -325,6 +325,10 @@ async def get_free_time_endpoint(date: str, services: str = Query(...)):
     
     except KeyError as e:
         raise HTTPException(status_code=400, detail=f"Service not found: {str(e)}")
+    
+@app.get("/")
+def root():
+    return {"message": "not an error"}
 
 @app.get("/confirm-booking")
 async def confirm_booking(eventId: str):
@@ -409,8 +413,8 @@ async def opt_out(email: str):
         raise HTTPException(status_code=500, detail=f"Error updating opt-out preference: {str(e)}")
     
 
-#if __name__ == '__main__':
-   # import uvicorn
-    #uvicorn.run(app)
+if __name__ == '__main__':
+    import uvicorn
+    uvicorn.run(app)
 
 handler = Mangum(app)
