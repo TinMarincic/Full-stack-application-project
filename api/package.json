@@ -1,15 +1,5 @@
 {
   "name": "api",
   "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "dev": "prisma generate --schema=prisma/schema.prisma && uvicorn index:app --reload",
-    "build": ""
-  },
-  "devDependencies": {
-    "prisma": "^5.17.0"
-  },
-  "prisma": {
-    "schema": "prisma/schema.prisma"
-  }
+  "private": true
 }

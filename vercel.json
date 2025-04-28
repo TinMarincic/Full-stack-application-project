@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "buildCommand": "pip install -r requirements.txt && pip install prisma && prisma generate --schema=api/prisma/schema.prisma",
+  "devCommand": "pip install -r requirements.txt && pip install prisma && prisma generate --schema=api/prisma/schema.prisma",
+  "builds": [
+    { "src": "api/index.py", "use": "@vercel/python" }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "api/index.py" }
+  ]
+}
