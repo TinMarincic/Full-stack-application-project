@@ -3,7 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "prisma generate && uvicorn src.main:app --reload",
+    "dev": "prisma generate --schema=../../prisma/schema.prisma && uvicorn src.main:app --reload",
     "build": ""
+  },
+  "devDependencies": {
+    "prisma": "^5.17.0"
   }
 }
