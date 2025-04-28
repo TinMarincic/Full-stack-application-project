@@ -1,17 +1,17 @@
 {
-    "version": 2,
-    "buildCommand": "prisma generate",
-    "devCommand": "prisma generate",
-    "builds": [
-      {
-        "src": "main.py",
-        "use": "@vercel/python"
-      }
-    ],
-    "routes": [
-      {
-        "src": "/(.*)",
-        "dest": "main.py"
-      }
-    ]
-  }
+  "version": 2,
+  "buildCommand": "pip install prisma && prisma generate",
+  "devCommand": "pip install prisma && prisma generate",
+  "builds": [
+    {
+      "src": "main.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "main.py"
+    }
+  ]
+}
