@@ -13,8 +13,5 @@
       "src": "/(.*)",
       "dest": "apps/api/src/main.py"
     }
-  ],
-  "turbo": {
-    "enabled": false
-  }
+  ]
 }
