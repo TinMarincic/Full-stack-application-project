@@ -16,6 +16,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
 from googleapiclient.errors import HttpError
+from mangum import Mangum
 
 os.environ['USERPROFILE'] = str(Path('C:/Users/tinma')) 
 
@@ -408,6 +409,8 @@ async def opt_out(email: str):
         raise HTTPException(status_code=500, detail=f"Error updating opt-out preference: {str(e)}")
     
 
-if __name__ == '__main__':
-    import uvicorn
-    uvicorn.run(app)
+#if __name__ == '__main__':
+   # import uvicorn
+    #uvicorn.run(app)
+
+handler = Mangum(app)
