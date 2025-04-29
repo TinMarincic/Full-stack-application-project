@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "uvicorn index:app --reload",
-    "build": ""
+    "build": "npx prisma generate --schema=prisma/schema.prisma",
+    "postinstall": "npx prisma generate --schema=prisma/schema.prisma"
   },
   "devDependencies": {
     "prisma": "^5.17.0"
