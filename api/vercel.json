@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npm install && npx prisma generate --schema=prisma/schema.prisma && pip install -r requirements.txt",
+  "buildCommand": "npm install --include=dev && npx prisma generate --schema=prisma/schema.prisma && pip install -r requirements.txt",
   "devCommand":   "pip install -r requirements.txt",
   "builds": [
     { "src": "index.py", "use": "@vercel/python" }
