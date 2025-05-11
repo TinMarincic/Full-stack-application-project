@@ -412,6 +412,16 @@ async def opt_out(email: str):
         await prisma.disconnect()
         raise HTTPException(status_code=500, detail=f"Error updating opt-out preference: {str(e)}")
     
+@app.get("/reminders")
+async def get_all_reminders():
+    try:
+        await prisma.connect()
+        reminders = await prisma.userreminders.find_many()
+        await prisma.disconnect()
+        return reminders
+    except Exception as e:
+        await prisma.disconnect()
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':
     import uvicorn
